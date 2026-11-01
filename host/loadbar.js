@@ -11,7 +11,7 @@ function ensureDom() {
   if (root) return;
   const style = document.createElement('style');
   style.textContent = `
-    #loadbar { position: absolute; left: 2%; right: 2%; top: 5cqh; z-index: 50; pointer-events: none;
+    #loadbar { position: absolute; left: 2%; right: 2%; top: 8cqh; z-index: 50; pointer-events: none;
       padding: 0.8cqh 1.6cqw; border-radius: 1cqh; background: rgba(0,0,0,0.8); color: #fff;
       font: 1.5cqh/1.35 ui-monospace, Consolas, monospace; transition: opacity 0.3s; }
     #loadbar.off { opacity: 0; }
@@ -25,6 +25,7 @@ function ensureDom() {
     #loadbar .lb-row.ng .lb-fill { width: 100%; background: #ef5350; animation: none; }
     #loadbar .lb-row.ng { color: #ff8a80; }
     #loadbar .lb-head .lb-fill { background: #ffca28; }
+    #loadbar .lb-head.done .lb-fill { background: #66bb6a; }
     #loadbar .lb-head.late .lb-fill { background: #ef5350; }
     #loadbar .lb-head.late { color: #ff8a80; }
     @keyframes lb-blink { from { opacity: 0.25; } to { opacity: 0.8; } }`;
@@ -95,9 +96,12 @@ function render() {
   const late = end > s.deadline;
 
   timeline.classList.toggle('late', late);
+  timeline.classList.toggle('done', !busy && !late);
   timeline.children[0].textContent = s.title;
   timeline.querySelector('.lb-fill').style.width = `${Math.min(100, (elapsed / budget) * 100)}%`;
-  timeline.children[2].textContent = `${elapsed.toFixed(2)}s / ${budget.toFixed(2)}s`;
+  // 終わったら、間に合ったか（余裕）・遅れたか（遅れ）を出す
+  timeline.children[2].textContent = busy ? `${elapsed.toFixed(2)}s / ${budget.toFixed(2)}s`
+    : late ? `${(end - s.deadline).toFixed(2)}s 遅れ` : `余裕 ${(s.deadline - end).toFixed(2)}s`;
 
   for (const it of s.items) {
     if (!it.dirty && it.status !== 'busy') continue;
