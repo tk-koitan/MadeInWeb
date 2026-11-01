@@ -73,7 +73,7 @@ async function createFrame() {
   frame.setAttribute('title', 'minigame');
   frame.src = `sandbox/sandbox.html?v=${encodeURIComponent(self.APP_VERSION)}`;
   const booted = waitFor(m => m.type === 'boot' || m.type === 'fatal', 15000);
-  $('screen').prepend(frame);
+  $('stage').prepend(frame);
   let m;
   try {
     m = await booted;
@@ -132,9 +132,30 @@ function curtain({ title = '', main = '', sub = '', hint = '' } = {}) {
   $('c-main').textContent = main;
   $('c-sub').textContent = sub;
   $('c-hint').textContent = hint;
+  for (const a of $('curtain').getAnimations()) a.cancel();
   $('curtain').classList.remove('hidden');
 }
 const hideCurtain = () => $('curtain').classList.add('hidden');
+
+// ---- ショート動画のような上スワイプ遷移
+/** スワイプの長さ（秒）。テンポが上がると短くなる */
+const swipeDur = spb => Math.min(0.4, spb * 0.8);
+function slide(el, from, to, dur) {
+  return el.animate(
+    [{ transform: `translateY(${from}%)` }, { transform: `translateY(${to}%)` }],
+    { duration: dur * 1000, easing: 'cubic-bezier(.3,.7,.2,1)', fill: 'forwards' },
+  ).finished.catch(() => {});
+}
+/** 準備画面が上に流れ、下からゲーム画面が上がってくる */
+async function swipeToGame(dur) {
+  await Promise.all([slide($('curtain'), 0, -100, dur), slide($('stage'), 100, 0, dur)]);
+  hideCurtain();
+}
+/** ゲーム画面が上に流れ、下から準備画面（content の内容）が上がってくる */
+async function swipeToCurtain(content, dur) {
+  curtain(content);
+  await Promise.all([slide($('curtain'), 100, 0, dur), slide($('stage'), 0, -100, dur)]);
+}
 const waitTap = () => new Promise(r => $('curtain').addEventListener('pointerdown', r, { once: true }));
 const lifeText = l => (l === Infinity ? '∞' : '●'.repeat(Math.max(0, l)) + '○'.repeat(MAX_LIVES - Math.max(0, l)));
 
@@ -256,6 +277,7 @@ async function runSession(catalog) {
     onBeat: () => pulse(spb),
   });
 
+  let fromGame = false;   // 直前がミニゲーム画面なら、準備画面を下からスワイプで出す
   for (;;) {
     // 準備（4拍）：次のミニゲームを読み込みながら、ライフとクリア数を見せる
     const game = nextGame(catalog);
@@ -267,27 +289,41 @@ async function runSession(catalog) {
     }
     if (!DEV_DIFF) st.difficulty = Math.min(3, 1 + Math.floor(st.count / DIFFICULTY_EVERY));
     spb = spbOf();
+    const dur = swipeDur(spb);
+    const prepEnd = T + BEATS.prepare * spb;
+    const prep = { title: lifeText(st.lives), main: String(st.count), sub: speedUp ? 'スピードアップ！' : '', hint: devHint(game) };
 
-    post({ type: 'unload' });
-    hideMark();
-    showTimer(false);
-    curtain({ title: lifeText(st.lives), main: String(st.count), sub: speedUp ? 'スピードアップ！' : '', hint: devHint(game) });
     if (speedUp) play('speedup', T);
-    const loaded = loadGame(game, st);
-    T = await beatPhase(T, BEATS.prepare, spb, {
+    beatPhase(T, BEATS.prepare, spb, {           // 拍は裏で刻み続ける
       sounds: i => (i % 2 === 1 ? ['kick', 'snare'] : ['kick', 'hat']),
       onBeat: () => pulse(spb),
     });
+    if (fromGame) {
+      await waitUntil(T);
+      play('whoosh');
+      await swipeToCurtain(prep, dur);
+    } else {
+      curtain(prep);
+    }
+    hideMark();
+    showTimer(false);
+    const loaded = loadGame(game, st);             // 前のゲームは読み込み時に片付けられる
 
+    // 準備の終わりに合わせてスワイプし、スワイプが終わった瞬間にミニゲームを始める
+    await waitUntil(prepEnd - dur);
     let r;
     if (await loaded) {
-      if (clock() > T + 0.05) T = clock() + 0.05;   // 読み込みが間に合わなかったら、そこから拍を取り直す
-      hideCurtain();
-      r = await gamePhase(T, game, spb);
+      let gameStart = prepEnd;
+      if (clock() > prepEnd - dur + 0.03) gameStart = clock() + dur;   // 読み込みが間に合わなかったら、そこから拍を取り直す
+      play('whoosh');
+      swipeToGame(dur);
+      r = await gamePhase(gameStart, game, spb);
       T = r.end;
     } else {
       r = { win: false, crashed: true, loadFailed: true };
-      T = clock() + 0.05;
+      swipeToGame(dur);
+      T = Math.max(prepEnd, clock()) + dur;
+      await waitUntil(T);
     }
 
     // 結果（4拍）
@@ -298,13 +334,15 @@ async function runSession(catalog) {
     if (r.loadFailed) showError(`「${game.title}」を読み込めませんでした`);
     T = await beatPhase(T, BEATS.result, spb, { sounds: i => (i === 0 ? [] : ['kick']) });
     if (r.crashed) { await recoverFrame(); T = Math.max(T, clock() + 0.05); }
+    fromGame = true;
 
     if (st.lives <= 0) break;
   }
 
+  play('whoosh');
+  await swipeToCurtain({ title: 'GAME OVER', main: String(st.count), sub: 'クリアした数', hint: 'タップでタイトルへ' }, swipeDur(spb));
   post({ type: 'unload' });
   hideMark();
-  curtain({ title: 'GAME OVER', main: String(st.count), sub: 'クリアした数', hint: 'タップでタイトルへ' });
   play('gameover');
   await sleep(1000);
   await waitTap();

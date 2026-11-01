@@ -24,6 +24,8 @@
   #screen { position: relative; aspect-ratio: 9 / 16;
     height: min(100%, calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 16 / 9));
     background: #000; overflow: hidden; container-type: size; }
+  #stage { position: absolute; inset: 0; overflow: hidden; will-change: transform; }
+  #curtain { will-change: transform; }
   iframe.game { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #fff; }
   .hidden { display: none !important; }
 
@@ -73,10 +75,13 @@
 </head>
 <body>
 <div id="screen">
-  <!-- ここにサンドボックス iframe が入る -->
-  <div id="timer" class="hidden"><div id="timer-bar"></div></div>
-  <div id="instruction"></div>
-  <div id="mark" class="hidden"></div>
+  <!-- ゲーム画面。iframe・タイマー・指示・○× をまとめてスワイプで動かす -->
+  <div id="stage">
+    <!-- ここにサンドボックス iframe が入る -->
+    <div id="timer" class="hidden"><div id="timer-bar"></div></div>
+    <div id="instruction"></div>
+    <div id="mark" class="hidden"></div>
+  </div>
   <div id="curtain">
     <div id="c-title"></div>
     <div id="c-main"></div>
