@@ -86,7 +86,8 @@ export default {
 | `ctx.circle({ x, y, r, color })` | 円 |
 | `ctx.rect({ x, y, w, h, radius, color })` | 四角（`radius` で角丸） |
 | `ctx.text(str, { x, y, size, color, weight, stroke, strokeWidth })` | 文字。`\n` で改行 |
-| `ctx.sprite(path, { x, y, w, h })` | 画像。`path` は `assets/foo.png` のようにゲームフォルダからの相対パス |
+| `ctx.sprite(path, { x, y, w, h, color, r })` | 画像。`path` は `assets/foo.png` のようにゲームフォルダからの相対パス。`w` か `h` の片方だけなら縦横比を保つ。`color` で色を掛ける（白い画像を好きな色に染められる）。`r` を付けると当たり判定が半径 `r` の円になる |
+| `ctx.texture(path)` | 3D 用のテクスチャ（`THREE.Texture`）を読み込む |
 | `ctx.add3D(object3d, { x, y, r })` | three の 3D オブジェクトを置く。`r` は当たり判定の半径 |
 
 共通オプション：`z`（重なり順、大きいほど手前）、`rotation`、`scale`、`alpha`
@@ -145,6 +146,12 @@ ctx.input.x; ctx.input.y; ctx.input.down;
 - `fetch`、外部 URL、`localStorage`、キーボード入力（サンドボックスで遮断されています）
 - `Math.random()`（`ctx.random` を使う）
 - 独自の外部ライブラリの読み込み
+
+## 画像素材
+
+- `assets/` に PNG を置く。画像の読み込みが終わってからゲームが始まる
+- 生成した画像は `node tools/sprite.mjs <入力.png> games/<id>/assets/<名前>.png --max 256` で整える（透過のゴミ取り・余白の切り取り・縮小）。3D のテクスチャは `--opaque` を付ける
+- 1本あたりの素材は合計 500KB 程度までを目安にする
 
 ## テストプレイ
 

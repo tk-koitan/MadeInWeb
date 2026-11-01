@@ -219,6 +219,17 @@ function makeCtx(s, m) {
   const rand = mulberry32(m.seed >>> 0);
   const random = (a = 0, b = 1) => a + rand() * (b - a);
   const beats = Number(m.beats) === 16 ? 16 : 8;
+  // 画像の読み込み。読み込み待ちは s.pending に入れ、全部そろってから本体に ready を返す
+  const loadTexture = (path, onLoad) => {
+    let done;
+    s.pending.push(new Promise(r => { done = r; }));
+    const tex = new THREE.TextureLoader().load(ctx.asset(path), t => { if (onLoad) onLoad(t); done(); }, undefined, () => {
+      report(new Error(`画像を読み込めません: ${path}`));
+      done();
+    });
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  };
   const ctx = {
     W, H,
     difficulty: m.difficulty,
@@ -253,21 +264,28 @@ function makeCtx(s, m) {
     text(str, opts = {}) {
       return place(new TextNode(s, str, opts), opts);
     },
-    sprite(path, { w = 0, h = 0, ...p } = {}) {
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w || 100, h || w || 100), flatMat('#ffffff'));
-      const n = new Node(s, mesh, { type: 'rect', w: w || 100, h: h || w || 100 });
-      const tex = new THREE.TextureLoader().load(ctx.asset(path), t => {
+    /**
+     * 画像を置く。w か h の片方だけ指定すると縦横比を保つ。
+     * color を指定すると画像に色を掛ける（白い画像なら、その色に染まる）。
+     * r を指定すると当たり判定が半径 r の円になる（省略時は画像の四角）。
+     */
+    sprite(path, { w = 0, h = 0, r = 0, color = '#ffffff', ...p } = {}) {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w || 100, h || w || 100), flatMat(color));
+      const n = new Node(s, mesh, r ? { type: 'circle', r } : { type: 'rect', w: w || 100, h: h || w || 100 });
+      n._color = color;
+      const tex = loadTexture(path, t => {
         if (n.removed || (w && h)) return;
         const iw = t.image.width, ih = t.image.height;
         const nw = w || (h ? h * iw / ih : iw), nh = h || (w ? w * ih / iw : ih);
         mesh.geometry.dispose();
         mesh.geometry = new THREE.PlaneGeometry(nw, nh);
-        n.shape = { type: 'rect', w: nw, h: nh };
-      }, undefined, () => report(new Error(`画像を読み込めません: ${path}`)));
-      tex.colorSpace = THREE.SRGBColorSpace;
+        if (!r) n.shape = { type: 'rect', w: nw, h: nh };
+      });
       mesh.material.map = tex;
       return place(n, p);
     },
+    /** 3D 用のテクスチャを読み込む（例: new THREE.MeshStandardMaterial({ map: ctx.texture('assets/crate.png') })） */
+    texture(path) { return loadTexture(path); },
     /** three の 3D オブジェクトを置く。r は当たり判定の半径 */
     add3D(object, { r = 100, ...p } = {}) {
       return place(new Node(s, object, { type: 'circle', r }), p);
@@ -397,7 +415,7 @@ function unload() {
 async function load(m) {
   unload();
   const s = {
-    runId: m.runId, nodes: new Set(), tweens: [], timers: [], handlers: {}, beatHandlers: [], nextBeat: 0,
+    runId: m.runId, nodes: new Set(), tweens: [], timers: [], handlers: {}, beatHandlers: [], nextBeat: 0, pending: [],
     result: null, started: false, time: 0, speed: Number(m.speed) || 1,
     timeoutResult: m.timeoutResult === 'win' ? 'win' : 'lose', game: null, ctx: null,
   };
@@ -411,6 +429,8 @@ async function load(m) {
     s.game = mod.default;
     if (!s.game || typeof s.game !== 'object') throw new Error('main.js は export default { init, update } の形にしてください');
     if (s.game.init) await s.game.init(s.ctx);
+    // 画像の読み込みを待つ（最大5秒）
+    await Promise.race([Promise.all(s.pending), new Promise(r => setTimeout(r, 5000))]);
     if (session === s) send({ type: 'ready', runId: s.runId });
   } catch (err) {
     if (session === s) report(err);

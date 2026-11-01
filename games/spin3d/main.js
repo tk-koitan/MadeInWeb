@@ -11,10 +11,9 @@ export default {
     sun.position.set(300, 500, 800);
     ctx.scene.add(sun);
 
-    // 面ごとに色を変えた立方体
-    const colors = [0xe4572e, 0xf3a712, 0x29bf12, 0x4f6bed, 0xd65db1, 0x2ec4b6];
-    const mats = colors.map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5 }));
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(220, 220, 220), mats);
+    // 木箱の画像を全面に貼った立方体
+    const mat = new THREE.MeshStandardMaterial({ map: ctx.texture('assets/crate.png'), roughness: 0.8 });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(220, 220, 220), mat);
     mesh.rotation.x = 0.45;
     mesh.rotation.y = 0.6;
     this.mesh = mesh;

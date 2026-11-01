@@ -1,5 +1,6 @@
 // 風船わり：浮かんでいく風船をタップして全部割る
-const COLORS = ['#e4572e', '#f3a712', '#29bf12', '#4f6bed', '#d65db1'];
+// 白い風船の画像に色を掛けて、いろいろな色の風船にしている
+const COLORS = ['#ff6b6b', '#ffb347', '#7bd66b', '#6b8bff', '#e07be0'];
 
 function burst(ctx, x, y, color) {
   for (let i = 0; i < 10; i++) {
@@ -13,26 +14,23 @@ function burst(ctx, x, y, color) {
 export default {
   init(ctx) {
     ctx.background('#bfe6ff');
-    ctx.circle({ x: 90, y: 160, r: 70, color: '#ffffff' });   // 雲
-    ctx.circle({ x: 160, y: 150, r: 55, color: '#ffffff' });
+    const c1 = ctx.sprite('assets/cloud.png', { x: 120, y: 150, w: 220 });
+    const c2 = ctx.sprite('assets/cloud.png', { x: 430, y: 270, w: 160, alpha: 0.85 });
+    c1.vx = 8; c2.vx = -6;
 
     const count = 2 + ctx.difficulty;       // 3〜5個
     let left = count;
     for (let i = 0; i < count; i++) {
       const x = 80 + (380 / Math.max(1, count - 1)) * i + ctx.random(-20, 20);
-      const y = ctx.random(520, 860);
+      const y = ctx.random(560, 820);
       const color = ctx.pick(COLORS);
-      const rise = -ctx.random(30, 60) * ctx.difficulty;
 
-      const string = ctx.rect({ x, y: y + 105, w: 3, h: 90, color: '#777777' });
-      const balloon = ctx.circle({ x, y, r: 62, color });
-      const shine = ctx.circle({ x: x - 22, y: y - 24, r: 12, color: '#ffffff', alpha: 0.7 });
-      for (const n of [string, balloon, shine]) n.vy = rise;
-
+      const balloon = ctx.sprite('assets/balloon.png', { x, y, w: 120, color });
+      balloon.vy = -ctx.random(30, 60) * ctx.difficulty;
       balloon.onTap(() => {
         ctx.sound.play('pop');
-        burst(ctx, balloon.x, balloon.y, color);
-        balloon.remove(); shine.remove(); string.remove();
+        burst(ctx, balloon.x, balloon.y - 30, color);
+        balloon.remove();
         left--;
         if (left === 0) ctx.win();
       });

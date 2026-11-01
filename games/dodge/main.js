@@ -5,7 +5,8 @@ export default {
     ctx.rect({ x: 270, y: 905, w: 540, h: 110, color: '#3a3f4b' });           // 地面
     ctx.text('ドラッグでよける', { x: 270, y: 905, size: 26, color: '#8a93a6' });
 
-    this.player = ctx.circle({ x: 270, y: 800, r: 38, color: '#61dafb' });
+    // 当たり判定は見た目より少し小さい円にする（理不尽に当たらないように）
+    this.player = ctx.sprite('assets/player.png', { x: 270, y: 800, w: 96, r: 36 });
     this.player.draggable = 'x';                                              // 横だけ動かせる
     this.rocks = [];
     this.interval = [0.5, 0.36, 0.26][ctx.difficulty - 1];
@@ -14,15 +15,15 @@ export default {
 
   update(dt, ctx) {
     const p = this.player;
-    p.x = Math.max(40, Math.min(500, p.x));
+    p.x = Math.max(48, Math.min(492, p.x));
 
     if (ctx.result) return;                                                   // 勝敗が決まったら止める
 
     this.cooldown -= dt;
     if (this.cooldown <= 0) {
       this.cooldown = this.interval;
-      const size = ctx.random(50, 90);
-      const rock = ctx.rect({ x: ctx.random(40, 500), y: -60, w: size, h: size, radius: 12, color: '#e4572e' });
+      const size = ctx.random(60, 100);
+      const rock = ctx.sprite('assets/rock.png', { x: ctx.random(40, 500), y: -60, w: size, r: size * 0.4 });
       rock.vy = ctx.random(450, 600) + ctx.difficulty * 60;
       rock.vr = ctx.random(-4, 4);
       this.rocks.push(rock);
@@ -32,8 +33,8 @@ export default {
       if (rock.y > 1100) rock.remove();
       if (ctx.overlap(p, rock)) {
         ctx.sound.play('hit');
-        p.color = '#e4572e';
-        ctx.tween(p, { scale: 1.5, alpha: 0.3 }, { duration: 0.3 });
+        p.color = '#ff7070';
+        ctx.tween(p, { scale: 1.4, alpha: 0.4 }, { duration: 0.3 });
         ctx.lose();
         break;
       }

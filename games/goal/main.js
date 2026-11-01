@@ -5,14 +5,15 @@ export default {
     ctx.rect({ x: 270, y: 480, w: 500, h: 920, radius: 30, color: '#40916c' });   // 芝生
 
     this.goalR = [85, 68, 55][ctx.difficulty - 1];
-    this.rim = ctx.circle({ x: ctx.random(130, 410), y: 230, r: this.goalR + 10, color: '#1b4332' });
+    this.rim = ctx.circle({ x: ctx.random(130, 410), y: 260, r: this.goalR + 10, color: '#1b4332' });
     this.hole = ctx.circle({ x: this.rim.x, y: this.rim.y, r: this.goalR, color: '#081c15' });
-    this.flag = ctx.text('⛳', { x: this.rim.x, y: this.rim.y - this.goalR - 40, size: 56 });
+    // 旗の画像は左端にポールがあるので、少し右にずらしてポールを穴の中心に立てる
+    this.flag = ctx.sprite('assets/flag.png', { x: this.hole.x + 20, y: this.hole.y - 60, h: 130 });
     this.speed = [0, 130, 220][ctx.difficulty - 1] * ctx.pick([-1, 1]);
 
     ctx.text('↑ ドラッグ', { x: 270, y: 900, size: 28, color: '#d8f3dc' });
 
-    const ball = ctx.circle({ x: 270, y: 780, r: 40, color: '#ffffff' });
+    const ball = ctx.sprite('assets/golfball.png', { x: 270, y: 780, w: 84, r: 42 });
     ball.draggable = true;
     this.ball = ball;
     ball.onDrop(() => {
@@ -31,7 +32,8 @@ export default {
     if (!this.speed) return;
     let x = this.hole.x + this.speed * dt;
     if (x < 110 || x > 430) { this.speed = -this.speed; x = Math.max(110, Math.min(430, x)); }
-    this.hole.x = this.rim.x = this.flag.x = x;
+    this.hole.x = this.rim.x = x;
+    this.flag.x = x + 20;
     if (this.inHole) this.ball.x = x;
   },
 };
