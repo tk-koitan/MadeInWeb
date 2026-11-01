@@ -32,13 +32,11 @@ renderer.autoClear = false;
 document.body.appendChild(renderer.domElement);
 const canvas = renderer.domElement;
 
-// 2層で描く：先に 3D の層（scene + camera3D）、その上に 2D の層（scene2D + camera2D）を重ねる。
+// 2層で描く：先に 3D の層（s.scene + s.camera3D）、その上に 2D の層（s.scene2D + camera2D）を重ねる。
 // three の座標では y が上向きなので、Node が y を反転して置く（画面の (x, y) → three の (x, -y)）。
-const scene = new THREE.Scene();      // 3D の層。ミニゲームには ctx.scene として渡す
-const scene2D = new THREE.Scene();    // 2D の層。circle / rect / text / sprite はこちら
+// シーンとカメラはゲーム（セッション）ごとに持つ。次のゲームを裏で読み込んでいる間も、いまのゲームを描き続けられる
 const camera2D = new THREE.OrthographicCamera(0, W, 0, -H, 0.1, 4000);
 camera2D.position.set(0, 0, 2000);
-let camera3D = makeCamera3D('ortho');
 
 /**
  * 3D の層のカメラを作る（ゲームごとに作り直すので、前のゲームの変更は残らない）。
@@ -99,43 +97,42 @@ function makeGltfLoader(lib, plugin) {
 // ミニゲームが ctx.bloom() / ctx.addPass() を呼んだときだけ使う（使わないゲームは今までどおり直接描く）。
 // layers: '3d' … 3D の層だけにかける（2D の層はあとから、くっきりしたまま重ねる）
 //         'all' … 2D の層も含めた画面全体にかける
-let composer = null, fxLayers = '3d';
 const FX_PIXEL_RATIO = () => Math.min(renderer.getPixelRatio(), 1.5);   // スマホで重くなりすぎないように
-function ensureComposer(layers) {
-  if (composer) return composer;
-  fxLayers = layers === 'all' ? 'all' : '3d';
-  composer = new EffectComposer(renderer);
+function ensureComposer(s, layers) {
+  if (s.composer) return s.composer;
+  s.fxLayers = layers === 'all' ? 'all' : '3d';
+  const composer = new EffectComposer(renderer);
   composer.setPixelRatio(FX_PIXEL_RATIO());
   composer.setSize(window.innerWidth, window.innerHeight);
-  composer.addPass(new RenderPass(scene, camera3D));
-  if (fxLayers === 'all') {
-    const p2 = new RenderPass(scene2D, camera2D);
+  composer.addPass(new RenderPass(s.scene, s.camera3D));
+  if (s.fxLayers === 'all') {
+    const p2 = new RenderPass(s.scene2D, camera2D);
     p2.clear = false;
     p2.clearDepth = true;
     composer.addPass(p2);
   }
   composer.addPass(new OutputPass());   // 色空間の変換。常に最後
+  s.composer = composer;
   return composer;
 }
 /** 出力の手前（OutputPass の前）にパスを追加する */
-function insertPass(pass, layers) {
-  const c = ensureComposer(layers);
+function insertPass(s, pass, layers) {
+  const c = ensureComposer(s, layers);
   c.insertPass(pass, c.passes.length - 1);
   return pass;
 }
-function disposeComposer() {
-  if (!composer) return;
-  for (const pass of composer.passes) if (pass.dispose) pass.dispose();
-  composer.dispose();
-  composer = null;
+function disposeComposer(s) {
+  if (!s.composer) return;
+  for (const pass of s.composer.passes) if (pass.dispose) pass.dispose();
+  s.composer.dispose();
+  s.composer = null;
 }
 
 const resize = () => {
   renderer.setSize(window.innerWidth, window.innerHeight, true);
-  if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+  for (const s of [session, nextSession]) if (s && s.composer) s.composer.setSize(window.innerWidth, window.innerHeight);
 };
 window.addEventListener('resize', resize);
-resize();
 
 function disposeObject(obj) {
   obj.traverse(o => {
@@ -149,7 +146,7 @@ function disposeObject(obj) {
 let seq = 0;
 
 class Node {
-  constructor(s, obj, shape, layer = scene2D) {
+  constructor(s, obj, shape, layer = s.scene2D) {
     this._s = s;
     this.obj = obj;            // three の Object3D
     this.shape = shape;        // 当たり判定 { type: 'circle', r } | { type: 'rect', w, h }
@@ -335,7 +332,7 @@ function makeCtx(s, m) {
     let done;
     s.pending.push(new Promise(r => { done = r; }));
     const tex = new THREE.TextureLoader().load(ctx.asset(path), t => { if (onLoad) onLoad(t); done(); }, undefined, () => {
-      report(new Error(`画像を読み込めません: ${path}`));
+      report(new Error(`画像を読み込めません: ${path}`), s);
       done();
     });
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -360,7 +357,7 @@ function makeCtx(s, m) {
     pick: arr => arr[Math.floor(rand() * arr.length)],
     asset: path => new URL(path, m.base).href,
 
-    background(color) { scene.background = new THREE.Color(color); },
+    background(color) { s.scene.background = new THREE.Color(color); },
     circle({ r = 50, color = '#ffffff', ...p } = {}) {
       const n = new Node(s, new THREE.Mesh(new THREE.CircleGeometry(r, 64), flatMat(color)), { type: 'circle', r });
       n._color = color;
@@ -403,13 +400,13 @@ function makeCtx(s, m) {
     texture(path) { return loadTexture(path); },
     /** three の 3D オブジェクトを 3D の層に置く（奥行き z = 0 の面に置かれる）。r は当たり判定の半径 */
     add3D(object, { r = 100, ...p } = {}) {
-      return place(new Node(s, object, { type: 'circle', r }, scene), p);
+      return place(new Node(s, object, { type: 'circle', r }, s.scene), p);
     },
     /** 画面の (x, y) にある 3D の物体を返す（いちばん手前のもの。なければ null）。add3D で置いたものは Node を返す */
     pick3D(x, y) {
       const ray = new THREE.Raycaster();
-      ray.setFromCamera(new THREE.Vector2((x / W) * 2 - 1, -((y / H) * 2 - 1)), camera3D);
-      const hit = ray.intersectObjects(scene.children, true)[0];
+      ray.setFromCamera(new THREE.Vector2((x / W) * 2 - 1, -((y / H) * 2 - 1)), s.camera3D);
+      const hit = ray.intersectObjects(s.scene.children, true)[0];
       if (!hit) return null;
       for (let o = hit.object; o; o = o.parent) if (o.userData.node) return o.userData.node;
       return hit.object;
@@ -417,7 +414,7 @@ function makeCtx(s, m) {
     /** 3D の物体（Object3D か Node）が画面のどこに映るかを返す { x, y, visible }。visible はカメラの前にあるか */
     toScreen(target) {
       const obj = target && target.obj ? target.obj : target;
-      const v = obj.getWorldPosition(new THREE.Vector3()).project(camera3D);
+      const v = obj.getWorldPosition(new THREE.Vector3()).project(s.camera3D);
       return { x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H, visible: v.z > -1 && v.z < 1 };
     },
 
@@ -449,10 +446,10 @@ function makeCtx(s, m) {
      */
     bloom({ strength = 1, radius = 0.4, threshold = 0.85, layers = '3d' } = {}) {
       const size = new THREE.Vector2(window.innerWidth, window.innerHeight);
-      return insertPass(new UnrealBloomPass(size, strength, radius, threshold), layers);
+      return insertPass(s, new UnrealBloomPass(size, strength, radius, threshold), layers);
     },
     /** 任意のポストエフェクトのパスを追加する（上級者向け。クラスは ctx.FX にある） */
-    addPass(pass, { layers = '3d' } = {}) { return insertPass(pass, layers); },
+    addPass(pass, { layers = '3d' } = {}) { return insertPass(s, pass, layers); },
     FX: { ShaderPass, UnrealBloomPass, RenderPass },
 
     // ---- VRM（人型アバター）
@@ -473,10 +470,10 @@ function makeCtx(s, m) {
         lib.VRMUtils.combineSkeletons(gltf.scene);
         lib.VRMUtils.rotateVRM0(vrm);                       // 古い VRM 0.x も +Z 向きにそろえる
         vrm.scene.traverse(o => { o.frustumCulled = false; });
-        if (session === s) s.vrms.push(vrm);
+        if (s.disposed) lib.VRMUtils.deepDispose(vrm.scene); else s.vrms.push(vrm);
         return vrm;
       })();
-      s.pending.push(p.catch(err => report(err)));
+      s.pending.push(p.catch(err => report(err, s)));
       return p;
     },
     /** VRM アニメーション（.vrma）を読み込む */
@@ -489,7 +486,7 @@ function makeCtx(s, m) {
         if (!anim) throw new Error(`VRM アニメーションではありません: ${path}`);
         return anim;
       })();
-      s.pending.push(p.catch(err => report(err)));
+      s.pending.push(p.catch(err => report(err, s)));
       return p;
     },
     /** VRM にアニメーションを再生させる（毎フレーム自動で進む）。返り値は THREE.AnimationAction */
@@ -500,14 +497,14 @@ function makeCtx(s, m) {
       action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
       action.clampWhenFinished = !loop;
       action.play();
-      if (session === s) s.mixers.push(mixer);
+      if (!s.disposed) s.mixers.push(mixer);
       return action;
     },
 
-    THREE, scene,
+    THREE, scene: s.scene,
     /** 3D の層のカメラ。game.json の "camera" が "perspective" なら遠近感あり */
-    get camera3D() { return camera3D; },
-    get camera() { return camera3D; },
+    camera3D: s.camera3D,
+    camera: s.camera3D,
   };
   return ctx;
 }
@@ -584,13 +581,15 @@ canvas.addEventListener('pointercancel', e => pointerEnd(e, true));
 document.addEventListener('contextmenu', e => e.preventDefault());
 
 // ---------------------------------------------------------------- セッション（1本のミニゲーム）
-let session = null;
+// session     … 画面に出ているゲーム（描画・入力・時間が進むのはこれだけ）
+// nextSession … 裏で読み込み中の次のゲーム。本体の 'show' か 'start' で session と入れ替わる
+let session = null, nextSession = null;
 let runCounter = 0;
 
-function report(err) {
+function report(err, s = session) {
   const message = err && err.stack ? String(err.stack) : String(err);
-  send({ type: 'error', runId: session ? session.runId : 0, message });
-  if (session && !session.result) session.result = 'lose';
+  send({ type: 'error', runId: s ? s.runId : 0, message });
+  if (s && !s.result) s.result = 'lose';
 }
 function safe(fn) {
   try { return fn(); } catch (err) { report(err); return undefined; }
@@ -602,39 +601,62 @@ function finish(s, win, byTimeup = false) {
   send({ type: 'result', runId: s.runId, win });
 }
 
+function disposeSession(s) {
+  if (!s || s.disposed) return;
+  s.disposed = true;
+  disposeComposer(s);
+  if (vrmUtils) for (const vrm of s.vrms) vrmUtils.deepDispose(vrm.scene);
+  for (const sc of [s.scene, s.scene2D]) for (const c of [...sc.children]) { sc.remove(c); disposeObject(c); }
+}
 function unload() {
-  disposeComposer();
-  if (session && vrmUtils) for (const vrm of session.vrms) vrmUtils.deepDispose(vrm.scene);
-  session = null;
-  for (const sc of [scene, scene2D]) for (const c of [...sc.children]) { sc.remove(c); disposeObject(c); }
-  scene.background = null;
+  disposeSession(session);
+  disposeSession(nextSession);
+  session = nextSession = null;
+  pointers.clear();
+}
+/** 裏で読み込んだ次のゲームを画面に出す（前のゲームは片付ける） */
+function show(runId) {
+  if (!nextSession || nextSession.runId !== runId) return;
+  disposeSession(session);
+  session = nextSession;
+  nextSession = null;
   pointers.clear();
 }
 
+/** 次のゲームを裏で読み込む。いま画面に出ているゲームは、入れ替わるまでそのまま動き続ける */
 async function load(m) {
-  unload();
+  disposeSession(nextSession);
   const s = {
     runId: m.runId, nodes: new Set(), tweens: [], timers: [], handlers: {}, beatHandlers: [], nextBeat: 0, pending: [],
-    vrms: [], mixers: [],
+    vrms: [], mixers: [], disposed: false,
+    scene: new THREE.Scene(), scene2D: new THREE.Scene(), composer: null, fxLayers: '3d',
+    camera3D: makeCamera3D(m.camera === 'perspective' ? 'perspective' : 'ortho'),
     result: null, started: false, time: 0, speed: Number(m.speed) || 1,
     timeoutResult: m.timeoutResult === 'win' ? 'win' : 'lose', game: null, ctx: null,
   };
-  camera3D = makeCamera3D(m.camera === 'perspective' ? 'perspective' : 'ortho');
   s.ctx = makeCtx(s, m);
-  session = s;
+  nextSession = s;
+  if (!session) show(s.runId);      // 画面に何も出ていなければ、すぐ出してよい
   try {
     const url = new URL(m.url);
     url.searchParams.set('run', String(++runCounter)); // 毎回まっさらな状態で読み込む
     const mod = await import(url.href);
-    if (session !== s) return;
+    if (s.disposed) return;
     s.game = mod.default;
     if (!s.game || typeof s.game !== 'object') throw new Error('main.js は export default { init, update } の形にしてください');
     if (s.game.init) await s.game.init(s.ctx);
     // 画像の読み込みを待つ（最大5秒）
     await Promise.race([Promise.all(s.pending), new Promise(r => setTimeout(r, 5000))]);
-    if (session === s) send({ type: 'ready', runId: s.runId });
+    // シェーダーを先に作っておく（始まった瞬間に固まらないように。VRM などは時間がかかる）
+    if (!s.disposed) {
+      await Promise.race([
+        Promise.all([renderer.compileAsync(s.scene, s.camera3D), renderer.compileAsync(s.scene2D, camera2D)]).catch(() => {}),
+        new Promise(r => setTimeout(r, 3000)),
+      ]);
+    }
+    if (!s.disposed) send({ type: 'ready', runId: s.runId });
   } catch (err) {
-    if (session === s) report(err);
+    if (!s.disposed) report(err, s);
   }
 }
 
@@ -645,7 +667,12 @@ window.addEventListener('message', e => {
   const s = session;
   switch (m.type) {
     case 'load': load(m); break;
-    case 'start': if (s && s.runId === m.runId) s.started = true; break;
+    case 'show': show(m.runId); break;
+    case 'start': {
+      show(m.runId);                 // 'show' が来ていなくても、始まるときには必ず出す
+      if (session && session.runId === m.runId) session.started = true;
+      break;
+    }
     case 'timeup': if (s && s.runId === m.runId && !s.result) finish(s, s.timeoutResult === 'win', true); break;
     case 'unload': unload(); break;
     case 'asset': {
@@ -704,16 +731,20 @@ function frame(now) {
     if (s.hitstop > 0) { s.hitstop -= dt; k *= HITSTOP_SCALE; }
     step(s, dt * k);
   }
-  if (composer) {
-    composer.render(dt);
-    if (fxLayers === '3d') { renderer.clearDepth(); renderer.render(scene2D, camera2D); }
+  const v = session;
+  if (!v) {
+    renderer.clear();
+  } else if (v.composer) {
+    v.composer.render(dt);
+    if (v.fxLayers === '3d') { renderer.clearDepth(); renderer.render(v.scene2D, camera2D); }
   } else {
     renderer.clear();
-    renderer.render(scene, camera3D);
+    renderer.render(v.scene, v.camera3D);
     renderer.clearDepth();
-    renderer.render(scene2D, camera2D);
+    renderer.render(v.scene2D, camera2D);
   }
   if (now - lastBeat > 500) { lastBeat = now; send({ type: 'heartbeat' }); }
 }
+resize();
 requestAnimationFrame(frame);
 send({ type: 'boot' });

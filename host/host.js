@@ -61,7 +61,7 @@ function waitUntil(t) {
 }
 
 // ---------------------------------------------------------------- サンドボックス iframe
-let frame = null, lastHeartbeat = 0, runId = 0;
+let frame = null, lastHeartbeat = 0, runId = 0, activeRunId = 0;   // runId は最後に読み込んだゲーム、activeRunId は遊んでいるゲーム
 const listeners = new Set();
 
 window.addEventListener('message', e => {
@@ -69,7 +69,8 @@ window.addEventListener('message', e => {
   const m = e.data;
   if (!m || typeof m !== 'object' || typeof m.type !== 'string') return;
   lastHeartbeat = performance.now();
-  if (m.type === 'sound') { if (m.runId === runId && typeof m.id === 'string') play(m.id); return; }
+  // 効果音は画面に出ているゲームのものだけ鳴らす（裏で読み込み中のゲームのものは鳴らさない）
+  if (m.type === 'sound') { if (m.runId === activeRunId && typeof m.id === 'string') play(m.id); return; }
   if (m.type === 'fetchAsset') { sendAsset(m); return; }
   if (m.type === 'error') { console.error('[minigame]', m.message); showError(String(m.message)); }
   for (const l of [...listeners]) l(m);
@@ -330,8 +331,8 @@ function loadGame(game, st, deadline) {
 }
 
 /** ミニゲームの区間。拍数ぶん遊ばせて、結果を返す（途中で決まっても最後まで続ける） */
-async function gamePhase(T, game, spb) {
-  const id = runId;
+async function gamePhase(T, game, spb, id) {
+  activeRunId = id;
   const beats = game.beats;
   const end = T + beats * spb;
   let outcome = null, crashed = false;
@@ -357,7 +358,7 @@ async function gamePhase(T, game, spb) {
   // 残り4拍：タイマーが赤く脈打つ。最後の3拍は 3・2・1 を出す
   for (let i = beats - 4; i < beats; i++) {
     waitUntil(T + i * spb).then(() => {
-      if (runId !== id) return;
+      if (activeRunId !== id) return;
       $('timer').classList.add('urgent');
       restartAnimation($('timer'), 'beat', Math.min(0.3, spb * 0.6));
       if (i >= beats - 3) showCountdown(beats - i, spb);
@@ -405,10 +406,28 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
   quitBtn.classList.toggle('hidden', !practice);
   quitBtn.onclick = () => { quit = true; quitBtn.classList.add('hidden'); };
 
-  // スタート（4拍）
+  // 次のミニゲームを決めて、裏で読み込み始める（スピードと難易度もここで決まる）。
+  // サンドボックスは、本体が 'show' を送るまで前のゲームを表示し続けるので、結果の4拍の間から読み込める。
+  // deadlineOf(新しい1拍の秒数) は、準備が終わる予定の時刻（読み込みバーの目安）
+  let next = null;
+  const preload = deadlineOf => {
+    const game = nextGame(catalog);
+    let speedUp = false;
+    if (!fixedSpeed) {
+      const s = Math.min(SPEED_MAX, 1 + SPEED_STEP * Math.floor(st.count / SPEED_EVERY));
+      speedUp = s > st.speed;
+      st.speed = s;
+    }
+    if (!fixedDiff) st.difficulty = Math.min(3, 1 + Math.floor(st.count / DIFFICULTY_EVERY));
+    const loaded = loadGame(game, st, deadlineOf(spbOf()));
+    next = { game, speedUp, loaded, id: runId };
+  };
+
+  // スタート（4拍）。この間に1本目を読み込む
   let T = clock() + 0.1;
   let spb = spbOf();
   curtain({ title: lifeText(st.lives), main: '0', sub: 'スタート！', bpm: `${Math.round(BASE_BPM * st.speed)} BPM` });
+  { const t0 = T, spb0 = spb; preload(spbN => t0 + BEATS.start * spb0 + BEATS.prepare * spbN); }
   const startMusic = music('start', T, BEATS.start, spb);
   if (!startMusic) play('start', T);
   T = await beatPhase(T, BEATS.start, spb, {
@@ -418,16 +437,12 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
 
   let fromGame = false;   // 直前がミニゲーム画面なら、準備画面を下からスワイプで出す
   for (;;) {
-    // 準備（4拍）：次のミニゲームを読み込みながら、ライフとクリア数を見せる
-    const game = nextGame(catalog);
-    let speedUp = false;
+    // 準備（4拍）：次のミニゲームの読み込みを待ちながら、ライフとクリア数を見せる
     if (quit) break;
-    if (!fixedSpeed) {
-      const s = Math.min(SPEED_MAX, 1 + SPEED_STEP * Math.floor(st.count / SPEED_EVERY));
-      speedUp = s > st.speed;
-      st.speed = s;
-    }
-    if (!fixedDiff) st.difficulty = Math.min(3, 1 + Math.floor(st.count / DIFFICULTY_EVERY));
+    if (!next) { const t0 = T; preload(spbN => t0 + BEATS.prepare * spbN); }   // 先読みしていない（最初・復旧後）
+    const cur = next;
+    next = null;
+    const { game, speedUp } = cur;
     spb = spbOf();
     const dur = swipeDur(spb);
     const prepEnd = T + BEATS.prepare * spb;
@@ -453,18 +468,18 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
     hideMark();
     showTimer(false);
     clearFx();
-    const loaded = loadGame(game, st, prepEnd);             // 前のゲームは読み込み時に片付けられる
+    post({ type: 'show', runId: cur.id });         // 幕で隠れたので、裏で読み込んだゲームに入れ替える
 
     // ミニゲームの1拍目でスワイプを始める（ゲームはスワイプしながら始まる）
     await waitUntil(prepEnd);
     if (quit) break;
     let r;
-    if (await loaded) {
+    if (await cur.loaded) {
       let gameStart = prepEnd;
       if (clock() > prepEnd + 0.03) gameStart = clock();   // 読み込みが間に合わなかったら、そこから拍を取り直す
       play('whoosh');
       swipeToGame(dur);
-      r = await gamePhase(gameStart, game, spb);
+      r = await gamePhase(gameStart, game, spb, cur.id);
       T = r.end;
     } else {
       r = { win: false, crashed: true, loadFailed: true };
@@ -473,8 +488,12 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
       await waitUntil(T);
     }
 
-    // 結果（4拍）
+    // 結果（4拍）。この間に次のゲームを裏で読み込み始める（落ちた後は、作り直してから読み込む）
     if (r.win) st.count++; else st.lives--;
+    if (!r.crashed && st.lives > 0 && !quit) {
+      const t0 = T, spb0 = spb;
+      preload(spbN => t0 + BEATS.result * spb0 + BEATS.prepare * spbN);
+    }
     const resultMusic = music(r.win ? 'win' : 'lose', T, BEATS.result, spb);
     if (!resultMusic) play(r.win ? 'ok' : 'ng', T);
     showMark(r.win);
