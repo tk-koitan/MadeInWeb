@@ -1,0 +1,13 @@
+{
+  "sdk": "0.1",
+  "author": "koitan",
+  "title": "スイカ斬り",
+  "instruction": "切れ！",
+  "beats": 8,
+  "timeoutResult": "lose",
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "slash": "assets/slash.mp3",
+    "splat": "assets/splat.mp3"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "sdk": "0.1",
+  "author": "koitan",
+  "title": "アヒル数え",
+  "instruction": "数えろ！",
+  "beats": 16,
+  "timeoutResult": "lose",
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "click": "assets/click.mp3"
+  }
+}

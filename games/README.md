@@ -88,7 +88,7 @@ export default {
 | `ctx.circle({ x, y, r, color })` | 円 |
 | `ctx.rect({ x, y, w, h, radius, color })` | 四角（`radius` で角丸） |
 | `ctx.text(str, { x, y, size, color, weight, stroke, strokeWidth })` | 文字。`\n` で改行 |
-| `ctx.sprite(path, { x, y, w, h, color, r })` | 画像。`path` は `assets/foo.png` のようにゲームフォルダからの相対パス。`w` か `h` の片方だけなら縦横比を保つ。`color` で色を掛ける（白い画像を好きな色に染められる）。`r` を付けると当たり判定が半径 `r` の円になる |
+| `ctx.sprite(path, { x, y, w, h, fit, color, r })` | 画像。`fit` を付けると縦横比を保ったまま `fit`×`fit` の枠に収まる。`path` は `assets/foo.png` のようにゲームフォルダからの相対パス。`w` か `h` の片方だけなら縦横比を保つ。`color` で色を掛ける（白い画像を好きな色に染められる）。`r` を付けると当たり判定が半径 `r` の円になる |
 | `ctx.texture(path)` | 3D 用のテクスチャ（`THREE.Texture`）を読み込む |
 | `ctx.add3D(object3d, { x, y, r })` | three の 3D オブジェクトを置く。`r` は当たり判定の半径 |
 
@@ -98,7 +98,7 @@ export default {
 
 | API | 内容 |
 | --- | --- |
-| `x`, `y`, `rotation`（ラジアン、時計回り）, `scale`, `alpha`, `z`, `visible`, `color` | 変更すると即反映 |
+| `x`, `y`, `rotation`（ラジアン、時計回り）, `scale`, `alpha`, `z`, `visible`, `color`, `flipX`（左右反転） | 変更すると即反映 |
 | `vx`, `vy`, `vr` | 速度（px/秒、ラジアン/秒）。毎フレーム自動で移動する |
 | `text` | 文字の Node だけ。代入で書き換え |
 | `onTap(fn)` | 指が触れた瞬間に呼ばれる。重なっていたら一番手前だけ |

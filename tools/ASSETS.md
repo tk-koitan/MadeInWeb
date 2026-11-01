@@ -66,3 +66,47 @@ node tools/comfy-audio.mjs "<英語のプロンプト>" <秒数> <出力.mp3> [-
 - 「fast」「urgent」などの速さを表す言葉を入れると、120 BPM を指定してもテンポがずれた（約 107 BPM）。「steady 120 BPM, four on the floor」と書くと合った
 - ジングルを「short jingle / sting」として頼むと 1〜1.5 秒で終わり、4拍（2秒）の後半が無音になった。「groove at a steady 120 BPM, four on the floor, continuous」として 4 秒で生成し、候補を数本作って 2 秒まで途切れないものを選ぶとよい
 - 区間の終わりで曲を切ると、伸びている和音が途切れて聞こえる。「the phrase resolves with a final chord at the end of the bar」と頼み、2秒ちょうどで鳴り終わる候補を選ぶ。再生側でも 0.25 秒重ねてフェードアウトする
+
+## 追加4本の画像（2026-11-01）
+
+```text
+Use the imagegen skill with the built-in image_gen tool (not the CLI fallback). Make ONE separate image_gen call per asset below (9 calls total), then copy each final PNG into the current working directory with EXACTLY the given filename. Do not create or modify any other files.
+
+Shared style for ALL assets (keep it consistent so they look like one game):
+flat cartoon mobile-game sprite, bold dark brown outline (about 3% of the image width), simple cel shading with one soft highlight, clean vector-like shapes, cheerful, no text, no watermark, no drop shadow on the ground, square canvas, subject centered with a small margin.
+
+All assets: genuinely TRANSPARENT background with a real alpha channel (no checkerboard, no backdrop, no white box).
+
+1. rocket.png - one cute toy rocket standing upright, pointing straight up, red and white body with a round blue window and three fins, no flame.
+2. duck.png - one yellow rubber duck floating, side view facing right, orange beak.
+3. watermelon.png - one whole round watermelon, green stripes, front view.
+4. cat.png - one cute cartoon cat, full body, side view facing right, standing on four legs, tail curving up. Orange tabby.
+5. dog.png - one cute cartoon dog, full body, side view facing right, standing on four legs, floppy ears. Light brown.
+6. rabbit.png - one cute cartoon rabbit, full body, side view facing right, sitting upright with long tall ears. White and gray.
+7. bear.png - one cute cartoon bear, full body, side view facing right, standing on four legs, round ears, chunky body. Brown.
+8. pig.png - one cute cartoon pig, full body, side view facing right, standing on four legs, curly tail, snout. Pink.
+9. fox.png - one cute cartoon fox, full body, side view facing right, standing on four legs, big fluffy tail. Orange with white tail tip.
+
+The six animals (4-9) must be drawn at the same scale and in the same pose style so their silhouettes can be compared.
+
+At the end, print the list of files you created with their pixel sizes.
+```
+
+### 追加4本の音（すべて 120 BPM）
+
+| ファイル | 秒 | プロンプト |
+| --- | --- | --- |
+| games/rocket/assets/bgm.mp3 | 6 | Exciting rocket countdown chiptune at a steady 120 BPM, four on the floor kick drum, pulsing synth bass, rising arpeggios, building tension, starts immediately on the downbeat（seed 3） |
+| games/rocket/assets/pump.mp3 | 1 | Short cartoon air pump puff sound effect, single quick squeeze, no music |
+| games/rocket/assets/launch.mp3 | 2.5 | Cartoon rocket launch blast with a rising whoosh, powerful, no music |
+| games/slash/assets/bgm.mp3 | 6 | Japanese taiko drum and shamisen groove at a steady 120 BPM, four on the floor kick drum, energetic samurai festival music, starts immediately on the downbeat（seed 3） |
+| games/slash/assets/slash.mp3 | 1 | Quick katana sword slash swoosh sound effect, sharp metallic swish, no music |
+| games/slash/assets/splat.mp3 | 1.5 | Juicy watermelon smash splat sound effect, wet and crunchy, no music |
+| games/count/assets/bgm.mp3 | 12 | Playful bathtime ukulele and marimba groove at a steady 120 BPM, four on the floor kick drum, bouncy and cute, continuous, starts immediately on the downbeat（seed 2） |
+| games/count/assets/click.mp3 | 1 | Single soft mechanical dial click tick sound effect, very short, no music |
+| games/silhouette/assets/bgm.mp3 | 6 | Curious quiz show groove at a steady 120 BPM, four on the floor kick drum, playful pizzicato strings and light piano, continuous, starts immediately on the downbeat（seed 7） |
+| games/silhouette/assets/correct.mp3 | 1.5 | Bright quiz show correct answer ding ding chime, cheerful, no music |
+| games/silhouette/assets/wrong.mp3 | 1.5 | Quiz show wrong answer buzzer, short low buzz, comedic, no music |
+
+- 「ticking clock」を入れたクイズ曲はテンポが 82〜127 BPM とばらついた。外すと 5 本とも 119 BPM になった
+- 生成できる長さは 1 秒以上（ComfyUI の EmptyLatentAudio の下限）

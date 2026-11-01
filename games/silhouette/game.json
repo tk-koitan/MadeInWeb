@@ -1,0 +1,13 @@
+{
+  "sdk": "0.1",
+  "author": "koitan",
+  "title": "シルエット当て",
+  "instruction": "選べ！",
+  "beats": 8,
+  "timeoutResult": "lose",
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "correct": "assets/correct.mp3",
+    "wrong": "assets/wrong.mp3"
+  }
+}

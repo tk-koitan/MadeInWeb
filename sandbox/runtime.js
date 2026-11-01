@@ -71,7 +71,14 @@ class Node {
   get rotation() { return this._rot; }
   set rotation(v) { this._rot = v; this.obj.rotation.z = -v; }
   get scale() { return this._scale; }
-  set scale(v) { this._scale = v; this.obj.scale.copy(this._baseScale).multiplyScalar(v); }
+  set scale(v) {
+    this._scale = v;
+    this.obj.scale.copy(this._baseScale).multiplyScalar(v);
+    if (this._flipX) this.obj.scale.x *= -1;
+  }
+  /** 左右反転（true で裏返す） */
+  get flipX() { return !!this._flipX; }
+  set flipX(v) { this._flipX = !!v; this.scale = this._scale; }
   get alpha() { return this._alpha; }
   set alpha(v) { this._alpha = v; this._eachMat(m => { m.opacity = v; m.transparent = true; }); }
   /** 重なり順。大きいほど手前。同じなら後から作ったものが手前 */
@@ -270,15 +277,19 @@ function makeCtx(s, m) {
      * 画像を置く。w か h の片方だけ指定すると縦横比を保つ。
      * color を指定すると画像に色を掛ける（白い画像なら、その色に染まる）。
      * r を指定すると当たり判定が半径 r の円になる（省略時は画像の四角）。
+     * fit を指定すると、縦横比を保ったまま fit × fit の枠に収まる大きさになる。
      */
-    sprite(path, { w = 0, h = 0, r = 0, color = '#ffffff', ...p } = {}) {
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w || 100, h || w || 100), flatMat(color));
-      const n = new Node(s, mesh, r ? { type: 'circle', r } : { type: 'rect', w: w || 100, h: h || w || 100 });
+    sprite(path, { w = 0, h = 0, r = 0, fit = 0, color = '#ffffff', ...p } = {}) {
+      if (fit) { w = 0; h = 0; }
+      const w0 = w || fit || 100, h0 = h || w || fit || 100;
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w0, h0), flatMat(color));
+      const n = new Node(s, mesh, r ? { type: 'circle', r } : { type: 'rect', w: w0, h: h0 });
       n._color = color;
       const tex = loadTexture(path, t => {
         if (n.removed || (w && h)) return;
         const iw = t.image.width, ih = t.image.height;
-        const nw = w || (h ? h * iw / ih : iw), nh = h || (w ? w * ih / iw : ih);
+        let nw = w || (h ? h * iw / ih : iw), nh = h || (w ? w * ih / iw : ih);
+        if (fit) { const k = fit / Math.max(iw, ih); nw = iw * k; nh = ih * k; }
         mesh.geometry.dispose();
         mesh.geometry = new THREE.PlaneGeometry(nw, nh);
         if (!r) n.shape = { type: 'rect', w: nw, h: nh };

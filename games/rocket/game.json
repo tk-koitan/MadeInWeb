@@ -1,0 +1,13 @@
+{
+  "sdk": "0.1",
+  "author": "koitan",
+  "title": "ロケット発射",
+  "instruction": "連打！",
+  "beats": 8,
+  "timeoutResult": "lose",
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "pump": "assets/pump.mp3",
+    "launch": "assets/launch.mp3"
+  }
+}
