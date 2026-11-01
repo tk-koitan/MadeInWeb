@@ -104,6 +104,32 @@
   #c-main.pulse { animation: beatpulse .25s ease-out; }
   @keyframes beatpulse { from { transform: scale(1.18); } to { transform: scale(1); } }
 
+  /* ---- ボタン・メニュー ---- */
+  .btn { font: inherit; font-weight: 800; font-size: 3cqh; border: 0; border-radius: 2.4cqh; padding: 1.6cqh 3cqh;
+    background: #fff; color: #e4572e; box-shadow: 0 .6cqh 0 rgba(0, 0, 0, .15); cursor: pointer; touch-action: manipulation; }
+  .btn:active { transform: translateY(.4cqh); box-shadow: 0 .2cqh 0 rgba(0, 0, 0, .15); }
+  .btn.primary { background: #e4572e; color: #fff; font-size: 3.6cqh; padding: 2cqh 7cqh; }
+  .btn.small { font-size: 2.2cqh; padding: 1cqh 2.2cqh; border-radius: 1.6cqh; }
+  #title-menu { position: absolute; left: 0; right: 0; bottom: 14%; display: flex; flex-direction: column; align-items: center; gap: 2.4cqh; }
+  #curtain > #btn-quit { position: absolute; top: 1.5cqh; left: 3cqw; z-index: 2; }
+  #select { position: absolute; inset: 0; box-sizing: border-box; background: #fdf6e3; color: #333;
+    display: flex; flex-direction: column; gap: 1cqh; padding: 2cqh 4cqw 0; }
+  .sel-head { display: flex; align-items: center; gap: 3cqw; }
+  .sel-title { font-size: 3.4cqh; font-weight: 900; color: #e4572e; }
+  .sel-label { font-size: 2cqh; font-weight: 800; color: #a07c3b; margin-top: .8cqh; }
+  .seg { display: flex; gap: 1.5cqw; }
+  .seg button { flex: 1; font: inherit; font-weight: 800; font-size: 2cqh; padding: 1.2cqh 0; border-radius: 1.4cqh;
+    border: .3cqh solid #e4572e; background: #fff; color: #e4572e; touch-action: manipulation; }
+  .seg button.on { background: #e4572e; color: #fff; }
+  #sel-list { flex: 1; overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; display: grid;
+    grid-template-columns: 1fr 1fr; gap: 2cqw; align-content: start; padding-bottom: 3cqh; }
+  .card { font: inherit; text-align: left; border: 0; border-radius: 2cqh; background: #fff; padding: 1.6cqh 3cqw;
+    box-shadow: 0 .5cqh 0 rgba(0, 0, 0, .1); color: #333; touch-action: manipulation; }
+  .card:active { transform: translateY(.3cqh); }
+  .card .ins { font-size: 3cqh; font-weight: 900; color: #e4572e; }
+  .card .name { font-size: 2cqh; font-weight: 800; margin-top: .4cqh; }
+  .card .meta { font-size: 1.6cqh; color: #999; margin-top: .3cqh; }
+
   #version { position: absolute; top: 1.2cqh; right: 2cqw; font-size: 1.8cqh; color: #999;
     pointer-events: none; font-variant-numeric: tabular-nums; }
   #error { position: absolute; left: 3%; right: 3%; top: 4%; max-height: 40%; overflow: auto; padding: 8px;
@@ -138,6 +164,19 @@
     <div id="c-sub"></div>
     <div id="c-bpm"></div>
     <div id="c-hint"></div>
+    <button id="btn-quit" class="btn small hidden">◀ メニュー</button>
+  </div>
+  <!-- タイトルのボタン -->
+  <div id="title-menu" class="hidden">
+    <button id="btn-start" class="btn primary">スタート</button>
+    <button id="btn-select" class="btn">えらんで遊ぶ</button>
+  </div>
+  <!-- えらんで遊ぶ：ミニゲーム・スピード・難易度を選ぶ -->
+  <div id="select" class="hidden">
+    <div class="sel-head"><button id="sel-back" class="btn small">◀ もどる</button><div class="sel-title">えらんで遊ぶ</div></div>
+    <div class="sel-label">スピード</div><div id="sel-speed" class="seg"></div>
+    <div class="sel-label">難易度</div><div id="sel-diff" class="seg"></div>
+    <div class="sel-label">ミニゲーム（タップでスタート）</div><div id="sel-list"></div>
   </div>
   <div id="version"></div>
   <div id="error" class="hidden"></div>

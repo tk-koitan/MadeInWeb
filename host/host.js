@@ -329,10 +329,22 @@ async function gamePhase(T, game, spb) {
 }
 
 // ---------------------------------------------------------------- 通しで遊ぶ
-async function runSession(catalog) {
-  const st = { lives: DEV_GAME ? Infinity : MAX_LIVES, count: 0, speed: DEV_SPEED || 1, difficulty: DEV_DIFF || 1 };
+/**
+ * 通しで遊ぶ。practice: true なら「えらんで遊ぶ」（ライフ無限、◀ メニューで終了）。
+ * speed / difficulty を指定すると固定される
+ */
+async function runSession(catalog, { practice = false, speed = null, difficulty = null } = {}) {
+  const fixedSpeed = speed ?? DEV_SPEED, fixedDiff = difficulty ?? DEV_DIFF;
+  const st = { lives: practice || DEV_GAME ? Infinity : MAX_LIVES, count: 0, speed: fixedSpeed || 1, difficulty: fixedDiff || 1 };
   const spbOf = () => 60 / (BASE_BPM * st.speed);
-  const devHint = game => (DEV_GAME ? `DEV: ${game.id}  難易度 ${st.difficulty}  ${Math.round(BASE_BPM * st.speed)}bpm` : '');
+  const devHint = game => (DEV_GAME ? `DEV: ${game.id}  難易度 ${st.difficulty}  ${Math.round(BASE_BPM * st.speed)}bpm`
+    : practice ? `${game.title}　${DIFF_LABELS[st.difficulty - 1]}　${Math.round(BASE_BPM * st.speed)} BPM` : '');
+  bag = []; lastId = null;
+  // 「◀ メニュー」で練習を終える
+  let quit = false;
+  const quitBtn = $('btn-quit');
+  quitBtn.classList.toggle('hidden', !practice);
+  quitBtn.onclick = () => { quit = true; quitBtn.classList.add('hidden'); };
 
   // スタート（4拍）
   let T = clock() + 0.1;
@@ -350,12 +362,13 @@ async function runSession(catalog) {
     // 準備（4拍）：次のミニゲームを読み込みながら、ライフとクリア数を見せる
     const game = nextGame(catalog);
     let speedUp = false;
-    if (!DEV_SPEED) {
+    if (quit) break;
+    if (!fixedSpeed) {
       const s = Math.min(SPEED_MAX, 1 + SPEED_STEP * Math.floor(st.count / SPEED_EVERY));
       speedUp = s > st.speed;
       st.speed = s;
     }
-    if (!DEV_DIFF) st.difficulty = Math.min(3, 1 + Math.floor(st.count / DIFFICULTY_EVERY));
+    if (!fixedDiff) st.difficulty = Math.min(3, 1 + Math.floor(st.count / DIFFICULTY_EVERY));
     spb = spbOf();
     const dur = swipeDur(spb);
     const prepEnd = T + BEATS.prepare * spb;
@@ -385,6 +398,7 @@ async function runSession(catalog) {
 
     // ミニゲームの1拍目でスワイプを始める（ゲームはスワイプしながら始まる）
     await waitUntil(prepEnd);
+    if (quit) break;
     let r;
     if (await loaded) {
       let gameStart = prepEnd;
@@ -419,6 +433,13 @@ async function runSession(catalog) {
     if (st.lives <= 0) break;
   }
 
+  quitBtn.classList.add('hidden');
+  if (quit) {                                   // 練習をやめた：ゲームオーバー画面は出さない
+    post({ type: 'unload' });
+    hideMark();
+    clearFx();
+    return;
+  }
   play('whoosh');
   await swipeToCurtain({ title: 'GAME OVER', main: String(st.count), sub: 'クリアした数', hint: 'タップでタイトルへ' }, swipeDur(spb));
   post({ type: 'unload' });
@@ -428,15 +449,76 @@ async function runSession(catalog) {
   await waitTap();
 }
 
+/** タイトル。'normal'（スタート）か 'select'（えらんで遊ぶ）を返す */
 async function title(catalog) {
-  curtain({
-    title: 'MadeInWeb',
-    main: '',
-    sub: DEV_GAME ? `DEV: ${DEV_GAME}` : `${catalog.length}本のミニゲーム`,
-    hint: 'タップしてスタート',
+  if (DEV_GAME) {
+    curtain({ title: 'MadeInWeb', sub: `DEV: ${DEV_GAME}`, hint: 'タップしてスタート' });
+    await waitTap();
+    unlockAudio();
+    return 'normal';
+  }
+  curtain({ title: 'MadeInWeb', main: '', sub: `${catalog.length}本のミニゲーム` });
+  $('title-menu').classList.remove('hidden');
+  const mode = await new Promise(resolve => {
+    $('btn-start').onclick = () => resolve('normal');
+    $('btn-select').onclick = () => resolve('select');
   });
-  await waitTap();
+  $('title-menu').classList.add('hidden');
   unlockAudio();
+  return mode;
+}
+
+// ---- えらんで遊ぶ
+const SPEED_CHOICES = [1, 1.25, 1.5, 1.75, 2];
+const DIFF_LABELS = ['かんたん', 'ふつう', 'むずかしい'];
+function loadPrefs() {
+  try {
+    const p = JSON.parse(localStorage.getItem('madeinweb.select') || '{}');
+    return { speed: SPEED_CHOICES.includes(p.speed) ? p.speed : 1, difficulty: [1, 2, 3].includes(p.difficulty) ? p.difficulty : 1 };
+  } catch { return { speed: 1, difficulty: 1 }; }
+}
+function savePrefs(p) {
+  try { localStorage.setItem('madeinweb.select', JSON.stringify(p)); } catch { /* 保存できなくても遊べる */ }
+}
+/** 選択ボタンの列を作る */
+function segment(el, items, current, onPick) {
+  el.textContent = '';
+  for (const [value, label] of items) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.classList.toggle('on', value === current);
+    b.onclick = () => {
+      for (const x of el.children) x.classList.remove('on');
+      b.classList.add('on');
+      onPick(value);
+    };
+    el.append(b);
+  }
+}
+/** ミニゲーム・スピード・難易度を選ぶ。もどる なら null */
+async function selectScreen(catalog) {
+  const prefs = loadPrefs();
+  segment($('sel-speed'), SPEED_CHOICES.map(v => [v, String(Math.round(BASE_BPM * v))]), prefs.speed, v => { prefs.speed = v; savePrefs(prefs); });
+  segment($('sel-diff'), DIFF_LABELS.map((l, i) => [i + 1, l]), prefs.difficulty, v => { prefs.difficulty = v; savePrefs(prefs); });
+  const result = await new Promise(resolve => {
+    const list = $('sel-list');
+    list.textContent = '';
+    for (const g of catalog) {
+      const card = document.createElement('button');
+      card.className = 'card';
+      const ins = document.createElement('div'); ins.className = 'ins'; ins.textContent = g.instruction;
+      const name = document.createElement('div'); name.className = 'name'; name.textContent = g.title;
+      const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = `${g.beats}拍${g.author ? '・' + g.author : ''}`;
+      card.append(ins, name, meta);
+      card.onclick = () => resolve({ game: g, speed: prefs.speed, difficulty: prefs.difficulty });
+      list.append(card);
+    }
+    $('sel-back').onclick = () => resolve(null);
+    $('select').classList.remove('hidden');
+  });
+  $('select').classList.add('hidden');
+  if (result) unlockAudio();
+  return result;
 }
 
 // ---------------------------------------------------------------- 起動
@@ -460,7 +542,16 @@ if ('serviceWorker' in navigator) {
     return;
   }
   for (;;) {
-    await title(catalog);
-    await runSession(catalog);
+    const mode = await title(catalog);
+    if (mode === 'select') {
+      // えらんで遊ぶ：練習 → メニューに戻る、を「もどる」まで繰り返す
+      for (;;) {
+        const pick = await selectScreen(catalog);
+        if (!pick) break;
+        await runSession([pick.game], { practice: true, speed: pick.speed, difficulty: pick.difficulty });
+      }
+    } else {
+      await runSession(catalog);
+    }
   }
 })();
