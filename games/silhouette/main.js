@@ -1,6 +1,5 @@
-// シルエット当て：上のシルエットと同じ動物を、下の候補から「長押し」で選ぶ（短いタップでは選ばれない）
+// シルエット当て：上のシルエットと同じ動物を、下の候補からタップで選ぶ（チャンスは1回）
 const ANIMALS = ['cat', 'dog', 'rabbit', 'bear', 'pig', 'fox'];
-const HOLD = 0.45;   // 長押しに必要な時間（ゲーム内の秒、約1拍）
 
 export default {
   init(ctx) {
@@ -28,30 +27,22 @@ export default {
       const y = n <= 3 ? 700 : 590 + r * 180;
       for (let i = 0; i < count; i++, k++) {
         const x = 270 + (i - (count - 1) / 2) * (size + 20);
-        const ring = ctx.circle({ x, y, r: size * 0.62, color: '#f3a712', alpha: 0.7, scale: 0 });
         const card = ctx.rect({ x, y, w: size, h: size, radius: 24, color: '#ffffff' });
         const pic = ctx.sprite(`assets/${names[k]}.png`, { x, y, fit: size * 0.85 });
-        this.cards.push({ name: names[k], ring, card, pic, x });
+        const c = { name: names[k], card, pic, x };
+        card.onTap(() => { if (!this.done && !ctx.result) this.select(ctx, c); });
+        this.cards.push(c);
       }
     });
-    ctx.text('長押しで選ぶ', { x: 270, y: 905, size: 30, color: '#a07c3b' });
-
-    this.hold = null;
-    ctx.input.on('down', e => {
-      if (ctx.result) return;
-      this.hold = this.cards.find(c => c.card.contains(e.x, e.y)) || null;
-      this.holdT = 0;
-    });
-    ctx.input.on('up', () => this.release());
-  },
-
-  release() {
-    if (this.hold && !this.done) this.hold.ring.scale = 0;
-    this.hold = null;
+    ctx.text('タップで選ぶ', { x: 270, y: 905, size: 30, color: '#a07c3b' });
   },
 
   select(ctx, c) {
     this.done = true;
+    c.card.scale = 1.1;
+    c.pic.scale = 1.1;
+    ctx.tween(c.card, { scale: 1 }, { duration: 0.15 });
+    ctx.tween(c.pic, { scale: 1 }, { duration: 0.15 });
     this.sil.color = '#ffffff';                        // シルエットの正体を見せる
     ctx.tween(this.sil, { scale: 1.12 }, { duration: 0.15, ease: 'back' });
     if (c.name === this.answer) {
@@ -68,14 +59,5 @@ export default {
       }
       ctx.lose();
     }
-  },
-
-  update(dt, ctx) {
-    const c = this.hold;
-    if (!c || this.done || ctx.result) return;
-    if (!ctx.input.down || !c.card.contains(ctx.input.x, ctx.input.y)) { this.release(); return; }
-    this.holdT += dt;
-    c.ring.scale = Math.min(1, this.holdT / HOLD);
-    if (this.holdT >= HOLD) this.select(ctx, c);
   },
 };
