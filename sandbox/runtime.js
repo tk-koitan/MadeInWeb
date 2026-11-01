@@ -9,7 +9,14 @@ const parentWin = window.parent;
 const send = msg => parentWin.postMessage(msg, '*');
 
 // ---------------------------------------------------------------- 描画
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+} catch (err) {
+  send({ type: 'fatal', message: `WebGL を初期化できません。ブラウザのハードウェアアクセラレーション設定を確認してください。\n${err && err.message ? err.message : err}` });
+  throw err;
+}
+self.__mwBooted = true;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setClearColor(0xffffff);
 document.body.appendChild(renderer.domElement);

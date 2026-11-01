@@ -50,9 +50,15 @@ async function createFrame() {
   frame.setAttribute('sandbox', 'allow-scripts');
   frame.setAttribute('title', 'minigame');
   frame.src = `sandbox/sandbox.html?v=${encodeURIComponent(self.APP_VERSION)}`;
-  const booted = waitFor(m => m.type === 'boot', 15000);
+  const booted = waitFor(m => m.type === 'boot' || m.type === 'fatal', 15000);
   $('screen').prepend(frame);
-  await booted;
+  let m;
+  try {
+    m = await booted;
+  } catch {
+    throw new Error('ミニゲームの実行環境が起動しませんでした（15秒でタイムアウト）。\nブラウザの拡張機能やセキュリティ設定が iframe をブロックしていないか確認してください。');
+  }
+  if (m.type === 'fatal') throw new Error(`ミニゲームの実行環境を起動できません。\n${m.message}`);
   lastBeat = performance.now();
 }
 async function recoverFrame() {
