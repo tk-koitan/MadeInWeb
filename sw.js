@@ -9,6 +9,7 @@ const CORE = [
   './host/host.js',
   './host/sfx.js',
   './host/fx.js',
+  './host/loadbar.js',
   './version.js',
   './manifest.webmanifest',
   './icons/icon-180.png',

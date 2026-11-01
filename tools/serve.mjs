@@ -42,6 +42,7 @@ http.createServer(async (req, res) => {
       'Content-Type': TYPES[extname(file).toLowerCase()] || 'application/octet-stream',
       'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'no-store',
+      'Content-Length': body.length,
     });
     res.end(body);
   } catch {

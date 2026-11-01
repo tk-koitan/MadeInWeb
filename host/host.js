@@ -8,15 +8,19 @@
 //   ?game=balloon        そのミニゲームだけを繰り返す（ライフ無限、エラー表示あり）
 //   &difficulty=1..3     難易度を固定
 //   &speed=0.5..3        スピード（テンポの倍率）を固定
-//   ?debug               通常モードでもエラーを表示
+//   ?debug               通常モードでもエラーと読み込みバーを表示
+//                        （スマホではバージョン表示を5回タップでも切り替えられる）
 import { flash, shake, crack, confetti, clearFx } from './fx.js';
 import { unlockAudio, play, clock, playMusic, loadSound, registerSounds, setGameSounds } from './sfx.js';
+import { beginLoad, addItem, track } from './loadbar.js';
 
 const params = new URLSearchParams(location.search);
 const DEV_GAME = params.get('game');
 const DEV_DIFF = params.has('difficulty') ? clamp(parseInt(params.get('difficulty'), 10) || 1, 1, 3) : null;
 const DEV_SPEED = params.has('speed') ? clamp(Number(params.get('speed')) || 1, 0.5, 3) : null;
-const SHOW_ERRORS = !!DEV_GAME || params.has('debug');
+const DEBUG_KEY = 'madeinweb.debug';
+const storedDebug = () => { try { return localStorage.getItem(DEBUG_KEY) === '1'; } catch { return false; } };
+let DEBUG = !!DEV_GAME || params.has('debug') || storedDebug();
 
 const BASE_BPM = 120;
 const MAX_LIVES = 4;
@@ -86,18 +90,45 @@ const post = m => frame && frame.contentWindow && frame.contentWindow.postMessag
 const ASSET_MAX_BYTES = 30 * 1024 * 1024;
 const safeAssetPath = p => typeof p === 'string' && p.length < 200 && /^[\w\-./]+\.(vrm|vrma|glb|gltf|bin|png|jpg|jpeg|webp|json)$/i.test(p) && !p.includes('..') && !p.startsWith('/');
 let currentGameId = null;
+/** レスポンスを読み切る。bar があれば受け取ったバイト数を伝える（上限を超えたら途中でやめる） */
+async function readBody(r, bar) {
+  const length = Number(r.headers.get('content-length')) || 0;
+  if (length > ASSET_MAX_BYTES) throw new Error(`ファイルが大きすぎます（${(length / 1e6).toFixed(1)}MB）`);
+  // 圧縮して配信されたとき（GitHub Pages は gzip）は、content-length が圧縮後の大きさなので割合は出せない
+  const total = r.headers.get('content-encoding') ? 0 : length;
+  if (!bar || !r.body || !r.body.getReader) return r.arrayBuffer();
+  const reader = r.body.getReader(), chunks = [];
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    got += value.byteLength;
+    if (got > ASSET_MAX_BYTES) { reader.cancel(); throw new Error('ファイルが大きすぎます'); }
+    bar.progress(got, total);
+  }
+  const out = new Uint8Array(got);
+  let o = 0;
+  for (const c of chunks) { out.set(c, o); o += c.byteLength; }
+  return out.buffer;
+}
 async function sendAsset(m) {
+  let bar = null;
   const reply = (extra, transfer = []) => frame && frame.contentWindow && frame.contentWindow.postMessage({ type: 'asset', reqId: m.reqId, ...extra }, '*', transfer);
   try {
     if (m.runId !== runId || !currentGameId) throw new Error('いまのゲームからの依頼ではありません');
     if (!safeAssetPath(m.path)) throw new Error(`読み込めないファイル名です: ${m.path}`);
+    bar = DEBUG ? addItem(m.path) : null;
     const r = await fetch(`games/${currentGameId}/${m.path}`);
     if (!r.ok) throw new Error(`${m.path}: ${r.status}`);
-    const data = await r.arrayBuffer();
+    const data = await readBody(r, bar);
     if (data.byteLength > ASSET_MAX_BYTES) throw new Error(`${m.path} が大きすぎます（${(data.byteLength / 1e6).toFixed(1)}MB）`);
+    if (bar) { bar.progress(data.byteLength, data.byteLength); bar.finish(true); }
     reply({ ok: true, data }, [data]);
   } catch (err) {
-    reply({ ok: false, error: String(err && err.message ? err.message : err) });
+    const message = String(err && err.message ? err.message : err);
+    if (bar) bar.finish(false, message);
+    reply({ ok: false, error: message });
   }
 }
 
@@ -248,7 +279,7 @@ function showCountdown(n, spb) {
 
 let errorTimer = 0;
 function showError(msg) {
-  if (!SHOW_ERRORS) return;
+  if (!DEBUG) return;
   const el = $('error');
   el.textContent = msg;
   el.classList.remove('hidden');
@@ -275,7 +306,7 @@ async function beatPhase(T, beats, spb, { sounds, onBeat } = {}) {
 }
 
 // ---------------------------------------------------------------- ミニゲーム
-function loadGame(game, st) {
+function loadGame(game, st, deadline) {
   const id = ++runId;
   currentGameId = game.id;
   const v = encodeURIComponent(self.APP_VERSION);
@@ -289,7 +320,12 @@ function loadGame(game, st) {
   });
   const ready = waitFor(m => m.runId === id && (m.type === 'ready' || m.type === 'error'), 20000)
     .then(m => m.type === 'ready', () => false);
-  const audio = Promise.all([game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean).map(loadSound));
+  const audioUrls = [game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean);
+  if (DEBUG) {
+    beginLoad(game.title, deadline);
+    track('main.js + init()', ready);
+  }
+  const audio = Promise.all(audioUrls.map(u => (DEBUG ? track(u.split('/').pop(), loadSound(u)) : loadSound(u))));
   return Promise.all([ready, audio]).then(([ok]) => ok);
 }
 
@@ -417,7 +453,7 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
     hideMark();
     showTimer(false);
     clearFx();
-    const loaded = loadGame(game, st);             // 前のゲームは読み込み時に片付けられる
+    const loaded = loadGame(game, st, prepEnd);             // 前のゲームは読み込み時に片付けられる
 
     // ミニゲームの1拍目でスワイプを始める（ゲームはスワイプしながら始まる）
     await waitUntil(prepEnd);
@@ -550,7 +586,20 @@ if ('serviceWorker' in navigator) {
 }
 
 (async () => {
-  $('version').textContent = 'v' + self.APP_VERSION;
+  const showVersion = () => { $('version').textContent = 'v' + self.APP_VERSION + (DEBUG ? ' DEBUG' : ''); };
+  showVersion();
+  // バージョン表示を素早く5回タップすると、デバッグ表示を切り替える（スマホの PWA 用）
+  let taps = [];
+  $('version').addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    const now = performance.now();
+    taps = [...taps.filter(t => now - t < 2000), now];
+    if (taps.length < 5) return;
+    taps = [];
+    DEBUG = !DEBUG;
+    try { localStorage.setItem(DEBUG_KEY, DEBUG ? '1' : '0'); } catch {}
+    showVersion();
+  });
   registerSounds({ whoosh: 'audio/whoosh.mp3' });
   for (const url of Object.values(HOST_MUSIC)) loadSound(url);
   curtain({ title: 'MadeInWeb', hint: '読み込み中…' });
