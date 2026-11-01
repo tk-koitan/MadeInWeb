@@ -9,6 +9,7 @@
 //   &difficulty=1..3     難易度を固定
 //   &speed=0.5..3        スピード（テンポの倍率）を固定
 //   ?debug               通常モードでもエラーを表示
+import { flash, shake, crack, confetti, clearFx } from './fx.js';
 import { unlockAudio, play, clock, playMusic, loadSound, registerSounds, setGameSounds } from './sfx.js';
 
 const params = new URLSearchParams(location.search);
@@ -87,7 +88,7 @@ async function createFrame() {
   frame.setAttribute('title', 'minigame');
   frame.src = `sandbox/sandbox.html?v=${encodeURIComponent(self.APP_VERSION)}`;
   const booted = waitFor(m => m.type === 'boot' || m.type === 'fatal', 15000);
-  $('stage').prepend(frame);
+  $('shaker').prepend(frame);
   let m;
   try {
     m = await booted;
@@ -151,11 +152,16 @@ function nextGame(catalog) {
 }
 
 // ---------------------------------------------------------------- 画面表示
-function curtain({ title = '', main = '', sub = '', hint = '' } = {}) {
+// スピードの段階ごとに変わる準備画面の背景色
+const LEVEL_COLORS = ['#fdf6e3', '#fff1d0', '#ffe4dc', '#e9efff', '#e3f8e6', '#f3e8ff', '#fff6b8', '#ffe1ef'];
+function curtain({ title = '', main = '', sub = '', hint = '', bpm = '', speedup = false, level = 0 } = {}) {
   $('c-title').textContent = title;
   $('c-main').textContent = main;
   $('c-sub').textContent = sub;
+  $('c-bpm').textContent = bpm;
   $('c-hint').textContent = hint;
+  $('curtain').classList.toggle('speedup', speedup);
+  $('curtain').style.setProperty('--curtain-bg', LEVEL_COLORS[level % LEVEL_COLORS.length]);
   for (const a of $('curtain').getAnimations()) a.cancel();
   $('curtain').classList.remove('hidden');
 }
@@ -194,10 +200,29 @@ function showInstruction(text, spb) {
   $('instruction').textContent = text;
   restartAnimation($('instruction'), 'show', spb * 3);
 }
-function showMark(win) { const el = $('mark'); el.textContent = win ? '○' : '×'; el.className = win ? 'win' : 'lose'; }
+function showMark(win) {
+  const el = $('mark'), span = el.firstElementChild;
+  span.textContent = win ? '○' : '×';
+  span.className = '';
+  el.className = win ? 'win' : 'lose';
+}
+/** 結果の ○× を拍に合わせて弾ませる */
+const markBeat = spb => restartAnimation($('mark').firstElementChild, 'beat', Math.min(0.3, spb * 0.6));
 const hideMark = () => { $('mark').className = 'hidden'; };
-const setTimer = frac => { $('timer-bar').style.transform = `scaleX(${frac})`; };
-const showTimer = v => $('timer').classList.toggle('hidden', !v);
+const setTimer = frac => {
+  $('timer-bar').style.transform = `scaleX(${frac})`;
+  $('spark').style.left = `${5 + 90 * frac}%`;   // 導火線の火花はタイマーの先端
+};
+const showTimer = v => {
+  $('timer').classList.toggle('hidden', !v);
+  $('spark').classList.toggle('hidden', !v);
+  if (!v) $('timer').classList.remove('urgent', 'beat');
+};
+/** 残り拍数の表示（3・2・1） */
+function showCountdown(n, spb) {
+  $('countdown').textContent = String(n);
+  restartAnimation($('countdown'), 'tick', spb * 0.95);
+}
 
 let errorTimer = 0;
 function showError(msg) {
@@ -255,6 +280,9 @@ async function gamePhase(T, game, spb) {
     if (m.runId !== id || outcome) return;
     if (m.type === 'result') outcome = m.win === true ? 'win' : 'lose';
     if (m.type === 'error') outcome = 'lose';
+    // 勝敗が決まった瞬間の手応え（ゲーム側はヒットストップでスローになる）
+    if (outcome === 'win') flash(0.45, 0.2);
+    else if (outcome === 'lose') shake(0.02, 0.25);
   };
   listeners.add(resultL);
 
@@ -265,6 +293,16 @@ async function gamePhase(T, game, spb) {
     if (i >= beats - 4) play('count', T + i * spb);
     else if (!hasBgm) play('hatSoft', T + i * spb);
     if (!hasBgm && i % 2 === 0) play('kick', T + i * spb);
+  }
+
+  // 残り4拍：タイマーが赤く脈打つ。最後の3拍は 3・2・1 を出す
+  for (let i = beats - 4; i < beats; i++) {
+    waitUntil(T + i * spb).then(() => {
+      if (runId !== id) return;
+      $('timer').classList.add('urgent');
+      restartAnimation($('timer'), 'beat', Math.min(0.3, spb * 0.6));
+      if (i >= beats - 3) showCountdown(beats - i, spb);
+    });
   }
 
   await waitUntil(T);
@@ -299,7 +337,7 @@ async function runSession(catalog) {
   // スタート（4拍）
   let T = clock() + 0.1;
   let spb = spbOf();
-  curtain({ title: lifeText(st.lives), main: '0', sub: 'スタート！' });
+  curtain({ title: lifeText(st.lives), main: '0', sub: 'スタート！', bpm: `${Math.round(BASE_BPM * st.speed)} BPM` });
   const startMusic = music('start', T, BEATS.start, spb);
   if (!startMusic) play('start', T);
   T = await beatPhase(T, BEATS.start, spb, {
@@ -321,7 +359,11 @@ async function runSession(catalog) {
     spb = spbOf();
     const dur = swipeDur(spb);
     const prepEnd = T + BEATS.prepare * spb;
-    const prep = { title: lifeText(st.lives), main: String(st.count), sub: speedUp ? 'スピードアップ！' : '', hint: devHint(game) };
+    const level = Math.round((st.speed - 1) / SPEED_STEP);
+    const prep = {
+      title: lifeText(st.lives), main: String(st.count), hint: devHint(game),
+      sub: speedUp ? 'SPEED UP!' : '', bpm: `${Math.round(BASE_BPM * st.speed)} BPM`, speedup: speedUp, level,
+    };
 
     const prepMusic = music(speedUp ? 'speedup' : 'prepare', T, BEATS.prepare, spb);
     if (speedUp && !prepMusic) play('speedup', T);
@@ -338,6 +380,7 @@ async function runSession(catalog) {
     }
     hideMark();
     showTimer(false);
+    clearFx();
     const loaded = loadGame(game, st);             // 前のゲームは読み込み時に片付けられる
 
     // ミニゲームの1拍目でスワイプを始める（ゲームはスワイプしながら始まる）
@@ -363,8 +406,13 @@ async function runSession(catalog) {
     if (!resultMusic) play(r.win ? 'ok' : 'ng', T);
     showMark(r.win);
     showTimer(false);
+    if (r.win) { flash(0.85, 0.35); confetti(); }
+    else { shake(0.045, 0.45); crack(); }
     if (r.loadFailed) showError(`「${game.title}」を読み込めませんでした`);
-    T = await beatPhase(T, BEATS.result, spb, { sounds: i => (resultMusic || i === 0 ? [] : ['kick']) });
+    T = await beatPhase(T, BEATS.result, spb, {
+      sounds: i => (resultMusic || i === 0 ? [] : ['kick']),
+      onBeat: i => { if (i > 0) markBeat(spb); },
+    });
     if (r.crashed) { await recoverFrame(); T = Math.max(T, clock() + 0.05); }
     fromGame = true;
 

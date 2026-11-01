@@ -7,6 +7,8 @@ import * as THREE from '../vendor/three.module.min.js';
 const W = 540, H = 960;
 // ゲーム内時間は 120bpm 基準（1拍 = 0.5秒）。テンポが上がると dt に倍率が掛かる。
 const BASE_BPM = 120, SEC_PER_BEAT = 60 / BASE_BPM;
+// ヒットストップ：勝敗が決まった瞬間、HITSTOP_SEC 秒（実時間）だけ時間の進みを HITSTOP_SCALE 倍にする
+const HITSTOP_SEC = 0.25, HITSTOP_SCALE = 0.15;
 const parentWin = window.parent;
 const send = msg => parentWin.postMessage(msg, '*');
 
@@ -399,9 +401,10 @@ function report(err) {
 function safe(fn) {
   try { return fn(); } catch (err) { report(err); return undefined; }
 }
-function finish(s, win) {
+function finish(s, win, byTimeup = false) {
   if (s !== session || s.result) return;
   s.result = win ? 'win' : 'lose';
+  if (!byTimeup) s.hitstop = HITSTOP_SEC;   // 勝敗が決まった瞬間、少しのあいだスローにする
   send({ type: 'result', runId: s.runId, win });
 }
 
@@ -445,7 +448,7 @@ window.addEventListener('message', e => {
   switch (m.type) {
     case 'load': load(m); break;
     case 'start': if (s && s.runId === m.runId) s.started = true; break;
-    case 'timeup': if (s && s.runId === m.runId && !s.result) finish(s, s.timeoutResult === 'win'); break;
+    case 'timeup': if (s && s.runId === m.runId && !s.result) finish(s, s.timeoutResult === 'win', true); break;
     case 'unload': unload(); break;
   }
 });
@@ -488,7 +491,11 @@ function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
   const s = session;
-  if (s && s.started) step(s, dt * s.speed);
+  if (s && s.started) {
+    let k = s.speed;
+    if (s.hitstop > 0) { s.hitstop -= dt; k *= HITSTOP_SCALE; }
+    step(s, dt * k);
+  }
   renderer.render(scene, camera);
   if (now - lastBeat > 500) { lastBeat = now; send({ type: 'heartbeat' }); }
 }

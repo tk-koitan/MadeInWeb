@@ -47,18 +47,60 @@
 
   #mark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     font-size: 50cqw; font-weight: 900; pointer-events: none;
-    -webkit-text-stroke: 1.2cqw #fff; paint-order: stroke fill; animation: mark .25s ease-out; }
+    -webkit-text-stroke: 1.2cqw #fff; paint-order: stroke fill; }
+  #mark span { display: block; }
   #mark.win { color: #e4572e; }
   #mark.lose { color: #3d5a80; }
-  @keyframes mark { from { transform: scale(1.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  #mark.win span { animation: markpop .35s cubic-bezier(.3, 1.6, .5, 1); }
+  #mark.lose span { animation: markdrop .5s cubic-bezier(.3, 1.4, .5, 1); }
+  #mark.win span.beat { animation: markbeat .25s ease-out; }
+  #mark.lose span.beat { animation: markwobble .3s ease-out; }
+  @keyframes markpop { from { transform: scale(0.2) rotate(-20deg); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes markdrop { from { transform: translateY(-80cqh) rotate(25deg); } to { transform: translateY(0); } }
+  @keyframes markbeat { from { transform: scale(1.18); } to { transform: scale(1); } }
+  @keyframes markwobble { 0% { transform: rotate(0); } 30% { transform: rotate(-7deg); } 65% { transform: rotate(5deg); } 100% { transform: rotate(0); } }
 
-  #curtain { position: absolute; inset: 0; background: #fdf6e3; color: #333; pointer-events: auto;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2cqh; }
+  /* ---- 演出 ---- */
+  #shaker { position: absolute; inset: 0; }
+  #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  #confetti, #crack { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #crack path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: crackdraw .18s ease-out forwards; }
+  @keyframes crackdraw { to { stroke-dashoffset: 0; } }
+  #countdown { position: absolute; left: 0; right: 0; bottom: 6%; text-align: center; pointer-events: none;
+    font-size: 14cqh; font-weight: 900; line-height: 1; color: #fff; -webkit-text-stroke: 1.2cqw #e4572e;
+    paint-order: stroke fill; opacity: 0; }
+  #countdown.tick { animation: counttick .5s ease-out forwards; }
+  @keyframes counttick { 0% { opacity: 0; transform: scale(2); } 15% { opacity: 1; transform: scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: scale(.85); } }
+  /* 導火線の火花（タイマーの先端） */
+  #spark { position: absolute; bottom: calc(2.5% + 0.7cqh); width: 4cqh; height: 4cqh; margin: 0 0 -2cqh -2cqh;
+    border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, #fff 0 18%, #ffd25a 30%, rgba(255, 120, 40, .7) 50%, rgba(255, 80, 0, 0) 70%);
+    animation: flicker .12s steps(2) infinite; }
+  @keyframes flicker { 0% { transform: scale(1) rotate(0); } 100% { transform: scale(1.25) rotate(45deg); } }
+  #timer.urgent #timer-bar { background: #e4572e; }
+  #timer.urgent.beat { animation: timerbeat .25s ease-out; }
+  @keyframes timerbeat { from { transform: scaleY(2.2); } to { transform: scaleY(1); } }
+
+  #curtain { position: absolute; inset: 0; background: var(--curtain-bg, #fdf6e3); color: #333; pointer-events: auto;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2cqh;
+    overflow: hidden; transition: background-color .3s; }
+  #c-title, #c-main, #c-sub, #c-bpm { position: relative; z-index: 1; }
+  #c-bpm { font-size: 2.4cqh; font-weight: 800; color: #b08a4a; letter-spacing: .08em; }
+  /* スピードアップの集中線 */
+  #curtain > #speedlines { position: absolute; z-index: 0; inset: -60%; display: none;
+    background: repeating-conic-gradient(from 0deg, rgba(228, 87, 46, .22) 0deg 3deg, transparent 3deg 11deg);
+    animation: spin 3s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #curtain.speedup > #speedlines { display: block; }
+  #curtain.speedup #c-sub { font-size: 6cqh; font-weight: 900; color: #e4572e; letter-spacing: .04em;
+    -webkit-text-stroke: .5cqw #fff; paint-order: stroke fill; animation: speedshake .12s linear infinite; }
+  #curtain.speedup #c-bpm { font-size: 4.4cqh; color: #333; }
+  @keyframes speedshake { 0% { transform: translate(0, 0); } 50% { transform: translate(.4cqw, -.3cqw); } 100% { transform: translate(-.3cqw, .3cqw); } }
   #c-title { font-size: 5cqh; font-weight: 800; letter-spacing: .05em; color: #e4572e; }
   #c-main { font-size: 16cqh; font-weight: 900; line-height: 1; }
   #c-sub { font-size: 3cqh; font-weight: 700; white-space: pre-wrap; text-align: center; padding: 0 6%; overflow-wrap: anywhere; }
-  #c-hint { position: absolute; bottom: 8%; left: 4%; right: 4%; text-align: center; font-size: 2.2cqh; color: #888; }
-  #curtain div:empty { display: none; }
+  #c-hint { position: absolute; bottom: 8%; left: 4%; right: 4%; text-align: center; font-size: 2.2cqh; color: #888; z-index: 1; }
+  #curtain div:empty:not(#speedlines) { display: none; }
   #c-main.pulse { animation: beatpulse .25s ease-out; }
   @keyframes beatpulse { from { transform: scale(1.18); } to { transform: scale(1); } }
 
@@ -77,15 +119,24 @@
 <div id="screen">
   <!-- ゲーム画面。iframe・タイマー・指示・○× をまとめてスワイプで動かす -->
   <div id="stage">
-    <!-- ここにサンドボックス iframe が入る -->
-    <div id="timer" class="hidden"><div id="timer-bar"></div></div>
-    <div id="instruction"></div>
-    <div id="mark" class="hidden"></div>
+    <div id="shaker">
+      <!-- ここにサンドボックス iframe が入る -->
+      <div id="flash"></div>
+      <svg id="crack" viewBox="0 0 100 178" preserveAspectRatio="none"></svg>
+      <canvas id="confetti"></canvas>
+      <div id="timer" class="hidden"><div id="timer-bar"></div></div>
+      <div id="spark" class="hidden"></div>
+      <div id="countdown"></div>
+      <div id="instruction"></div>
+      <div id="mark" class="hidden"><span></span></div>
+    </div>
   </div>
   <div id="curtain">
+    <div id="speedlines"></div>
     <div id="c-title"></div>
     <div id="c-main"></div>
     <div id="c-sub"></div>
+    <div id="c-bpm"></div>
     <div id="c-hint"></div>
   </div>
   <div id="version"></div>

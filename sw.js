@@ -8,6 +8,7 @@ const CORE = [
   './index.html',
   './host/host.js',
   './host/sfx.js',
+  './host/fx.js',
   './version.js',
   './manifest.webmanifest',
   './icons/icon-180.png',
