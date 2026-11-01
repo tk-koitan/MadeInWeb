@@ -3,6 +3,6 @@
   "title": "風船わり",
   "author": "koitan",
   "instruction": "割れ！",
-  "duration": 5,
+  "beats": 8,
   "timeoutResult": "lose"
 }

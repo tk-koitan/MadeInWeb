@@ -19,7 +19,7 @@ games/<id>/
   "title": "風船わり",
   "author": "koitan",
   "instruction": "割れ！",
-  "duration": 5,
+  "beats": 8,
   "timeoutResult": "lose"
 }
 ```
@@ -27,7 +27,7 @@ games/<id>/
 | 項目 | 内容 |
 | --- | --- |
 | `instruction` | 開始時に大きく出る指示。短い命令形（「割れ！」「よけろ！」） |
-| `duration` | 制限時間（秒、2〜10）。スピードが上がると実時間は短くなる |
+| `beats` | 長さ（拍）。`8` か `16`。テンポは最初 120bpm（1拍0.5秒）で、スピードアップすると速くなる |
 | `timeoutResult` | 時間切れのときの結果。達成型は `"lose"`、生き残り型は `"win"` |
 
 ## main.js
@@ -46,6 +46,15 @@ export default {
 - 勝ったら `ctx.win()`、負けたら `ctx.lose()`。最初の1回だけが有効です
 - 結果が出たあとも、本体が次へ進むまで少しの間 `update` は呼ばれ続けます。`if (ctx.result) return;` で止めます
 - 制限時間の管理は本体が行います。ゲーム側でタイマーを持つ必要はありません
+- 途中で勝敗が決まっても、ミニゲームは決められた拍数の最後まで表示されます。その後、本体が ○／× を出します
+
+## 進行（本体が管理）
+
+```
+スタート(4拍) → 準備(4拍) → ミニゲーム(8 or 16拍) → 結果(4拍) → 準備(4拍) → …
+```
+
+ゲーム内の時間は常に 120bpm 基準です（1拍 = 0.5秒、8拍 = 4秒）。スピードアップすると `dt` に倍率が掛かるので、ゲーム側は気にせず作れます。
 
 ## 画面
 
@@ -62,7 +71,11 @@ export default {
 | `ctx.W`, `ctx.H` | 540, 960 |
 | `ctx.difficulty` | 難易度 1〜3。数や速さを変えるのに使う |
 | `ctx.speed` | スピード倍率（参考。dt に掛け済み） |
-| `ctx.time` | 開始からの経過秒 |
+| `ctx.beats` | このミニゲームの長さ（8 か 16） |
+| `ctx.duration` | 長さ（ゲーム内の秒）。`beats × 0.5` |
+| `ctx.time` | 開始からの経過秒（ゲーム内時間） |
+| `ctx.beat` | 開始からの拍数（小数）。リズムに合わせた動きに使う |
+| `ctx.bpm` | 実際のテンポ（参考） |
 | `ctx.result` | `null` / `'win'` / `'lose'` |
 
 ### 物体を作る（戻り値は Node）
@@ -97,6 +110,7 @@ export default {
 | --- | --- |
 | `ctx.tween(node, { x, y, scale, alpha, rotation }, { duration, ease, delay })` | なめらかに変化。Promise を返す。`ease`: `linear` `in` `out` `inOut` `back` |
 | `ctx.after(sec, fn)`, `ctx.every(sec, fn)` | 一定時間後 / 一定間隔で実行（ゲーム内時間） |
+| `ctx.onBeat(fn)` | 拍の頭ごとに `fn(拍番号)` を呼ぶ（0拍目から） |
 | `ctx.overlap(a, b)` | 2つの Node が重なっているか（円・四角） |
 | `ctx.distance(a, b)` | 中心間の距離 |
 

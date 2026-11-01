@@ -3,6 +3,6 @@
   "title": "箱まわし（3D）",
   "author": "koitan",
   "instruction": "回せ！",
-  "duration": 5,
+  "beats": 16,
   "timeoutResult": "lose"
 }

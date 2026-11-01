@@ -3,6 +3,6 @@
   "title": "穴に入れろ",
   "author": "koitan",
   "instruction": "入れろ！",
-  "duration": 5,
+  "beats": 8,
   "timeoutResult": "lose"
 }

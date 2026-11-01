@@ -16,10 +16,11 @@ export default {
     const mats = colors.map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5 }));
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(220, 220, 220), mats);
     mesh.rotation.x = 0.45;
+    mesh.rotation.y = 0.6;
     this.mesh = mesh;
     this.cube = ctx.add3D(mesh, { x: 270, y: 460, r: 160 });
 
-    this.goal = 1 + ctx.difficulty;   // 2〜4回転
+    this.goal = 3 + ctx.difficulty;   // 4〜6回転（16拍 = 8秒）
     this.turns = 0;
     this.omega = 0;                   // 回転の速さ（ラジアン/秒）
     this.label = ctx.text(`0 / ${this.goal}`, { x: 270, y: 760, size: 72, color: '#333333' });

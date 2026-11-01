@@ -3,6 +3,6 @@
   "title": "落石よけ",
   "author": "koitan",
   "instruction": "よけろ！",
-  "duration": 5,
+  "beats": 8,
   "timeoutResult": "win"
 }

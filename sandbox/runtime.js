@@ -5,6 +5,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 
 const W = 540, H = 960;
+// ゲーム内時間は 120bpm 基準（1拍 = 0.5秒）。テンポが上がると dt に倍率が掛かる。
+const BASE_BPM = 120, SEC_PER_BEAT = 60 / BASE_BPM;
 const parentWin = window.parent;
 const send = msg => parentWin.postMessage(msg, '*');
 
@@ -216,13 +218,20 @@ const EASE = {
 function makeCtx(s, m) {
   const rand = mulberry32(m.seed >>> 0);
   const random = (a = 0, b = 1) => a + rand() * (b - a);
+  const beats = Number(m.beats) === 16 ? 16 : 8;
   const ctx = {
     W, H,
     difficulty: m.difficulty,
     speed: m.speed,
-    duration: m.duration,
+    beats,                                  // このミニゲームの長さ（拍）
+    bpm: BASE_BPM * s.speed,                // 実際のテンポ（参考）
+    duration: beats * SEC_PER_BEAT,         // ゲーム内時間での長さ（秒）
     get time() { return s.time; },
+    /** 開始からの拍数（小数）。0〜beats */
+    get beat() { return s.time / SEC_PER_BEAT; },
     get result() { return s.result; },
+    /** 拍の頭ごとに fn(拍番号) を呼ぶ。0 拍目（開始直後）も呼ばれる */
+    onBeat(fn) { s.beatHandlers.push(fn); },
 
     random,
     randInt: (a, b) => Math.floor(random(a, b + 1)),
@@ -388,7 +397,7 @@ function unload() {
 async function load(m) {
   unload();
   const s = {
-    runId: m.runId, nodes: new Set(), tweens: [], timers: [], handlers: {},
+    runId: m.runId, nodes: new Set(), tweens: [], timers: [], handlers: {}, beatHandlers: [], nextBeat: 0,
     result: null, started: false, time: 0, speed: Number(m.speed) || 1,
     timeoutResult: m.timeoutResult === 'win' ? 'win' : 'lose', game: null, ctx: null,
   };
@@ -426,6 +435,10 @@ window.addEventListener('unhandledrejection', e => report(e.reason));
 // ---------------------------------------------------------------- メインループ
 function step(s, dt) {
   s.time += dt;
+  while (s.time >= s.nextBeat * SEC_PER_BEAT) {
+    const b = s.nextBeat++;
+    for (const fn of s.beatHandlers) safe(() => fn(b));
+  }
   for (const tm of [...s.timers]) {
     tm.t -= dt;
     if (tm.t > 0) continue;
