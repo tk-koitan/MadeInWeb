@@ -23,13 +23,36 @@ try {
 self.__mwBooted = true;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setClearColor(0xffffff);
+renderer.autoClear = false;
 document.body.appendChild(renderer.domElement);
 const canvas = renderer.domElement;
 
-const scene = new THREE.Scene();
-// 正投影カメラ。three の座標では y が上向きなので、Node が y を反転して置く。
-const camera = new THREE.OrthographicCamera(0, W, 0, -H, 0.1, 4000);
-camera.position.set(0, 0, 2000);
+// 2層で描く：先に 3D の層（scene + camera3D）、その上に 2D の層（scene2D + camera2D）を重ねる。
+// three の座標では y が上向きなので、Node が y を反転して置く（画面の (x, y) → three の (x, -y)）。
+const scene = new THREE.Scene();      // 3D の層。ミニゲームには ctx.scene として渡す
+const scene2D = new THREE.Scene();    // 2D の層。circle / rect / text / sprite はこちら
+const camera2D = new THREE.OrthographicCamera(0, W, 0, -H, 0.1, 4000);
+camera2D.position.set(0, 0, 2000);
+let camera3D = makeCamera3D('ortho');
+
+/**
+ * 3D の層のカメラを作る（ゲームごとに作り直すので、前のゲームの変更は残らない）。
+ * どちらのカメラでも、奥行き z = 0 の面がちょうど 540×960 の画面に一致する。
+ *   ortho       … 遠近感なし（2D と同じ映り方）
+ *   perspective … 遠近感あり。z がプラス（手前）ほど大きく、マイナス（奥）ほど小さく映る
+ */
+function makeCamera3D(kind) {
+  if (kind === 'perspective') {
+    const fov = 50, dist = (H / 2) / Math.tan((fov / 2) * Math.PI / 180);
+    const cam = new THREE.PerspectiveCamera(fov, W / H, 1, 8000);
+    cam.position.set(W / 2, -H / 2, dist);
+    cam.lookAt(W / 2, -H / 2, 0);
+    return cam;
+  }
+  const cam = new THREE.OrthographicCamera(0, W, 0, -H, 0.1, 4000);
+  cam.position.set(0, 0, 2000);
+  return cam;
+}
 
 const resize = () => renderer.setSize(window.innerWidth, window.innerHeight, true);
 window.addEventListener('resize', resize);
@@ -47,7 +70,7 @@ function disposeObject(obj) {
 let seq = 0;
 
 class Node {
-  constructor(s, obj, shape) {
+  constructor(s, obj, shape, layer = scene2D) {
     this._s = s;
     this.obj = obj;            // three の Object3D
     this.shape = shape;        // 当たり判定 { type: 'circle', r } | { type: 'rect', w, h }
@@ -60,7 +83,7 @@ class Node {
     this._baseScale = obj.scale.clone();
     obj.userData.node = this;
     s.nodes.add(this);
-    scene.add(obj);
+    layer.add(obj);
     this._order();
   }
   get x() { return this._x; }
@@ -100,7 +123,7 @@ class Node {
     if (this.removed) return;
     this.removed = true;
     this._s.nodes.delete(this);
-    scene.remove(this.obj);
+    if (this.obj.parent) this.obj.parent.remove(this.obj);
     disposeObject(this.obj);
   }
   contains(px, py) {
@@ -299,9 +322,24 @@ function makeCtx(s, m) {
     },
     /** 3D 用のテクスチャを読み込む（例: new THREE.MeshStandardMaterial({ map: ctx.texture('assets/crate.png') })） */
     texture(path) { return loadTexture(path); },
-    /** three の 3D オブジェクトを置く。r は当たり判定の半径 */
+    /** three の 3D オブジェクトを 3D の層に置く（奥行き z = 0 の面に置かれる）。r は当たり判定の半径 */
     add3D(object, { r = 100, ...p } = {}) {
-      return place(new Node(s, object, { type: 'circle', r }), p);
+      return place(new Node(s, object, { type: 'circle', r }, scene), p);
+    },
+    /** 画面の (x, y) にある 3D の物体を返す（いちばん手前のもの。なければ null）。add3D で置いたものは Node を返す */
+    pick3D(x, y) {
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2((x / W) * 2 - 1, -((y / H) * 2 - 1)), camera3D);
+      const hit = ray.intersectObjects(scene.children, true)[0];
+      if (!hit) return null;
+      for (let o = hit.object; o; o = o.parent) if (o.userData.node) return o.userData.node;
+      return hit.object;
+    },
+    /** 3D の物体（Object3D か Node）が画面のどこに映るかを返す { x, y, visible }。visible はカメラの前にあるか */
+    toScreen(target) {
+      const obj = target && target.obj ? target.obj : target;
+      const v = obj.getWorldPosition(new THREE.Vector3()).project(camera3D);
+      return { x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H, visible: v.z > -1 && v.z < 1 };
     },
 
     tween(node, to, { duration = 0.3, ease = 'out', delay = 0 } = {}) {
@@ -324,7 +362,10 @@ function makeCtx(s, m) {
     win() { finish(s, true); },
     lose() { finish(s, false); },
 
-    THREE, scene, camera,
+    THREE, scene,
+    /** 3D の層のカメラ。game.json の "camera" が "perspective" なら遠近感あり */
+    get camera3D() { return camera3D; },
+    get camera() { return camera3D; },
   };
   return ctx;
 }
@@ -421,7 +462,7 @@ function finish(s, win, byTimeup = false) {
 
 function unload() {
   session = null;
-  for (const c of [...scene.children]) { scene.remove(c); disposeObject(c); }
+  for (const sc of [scene, scene2D]) for (const c of [...sc.children]) { sc.remove(c); disposeObject(c); }
   scene.background = null;
   pointers.clear();
 }
@@ -433,6 +474,7 @@ async function load(m) {
     result: null, started: false, time: 0, speed: Number(m.speed) || 1,
     timeoutResult: m.timeoutResult === 'win' ? 'win' : 'lose', game: null, ctx: null,
   };
+  camera3D = makeCamera3D(m.camera === 'perspective' ? 'perspective' : 'ortho');
   s.ctx = makeCtx(s, m);
   session = s;
   try {
@@ -507,7 +549,10 @@ function frame(now) {
     if (s.hitstop > 0) { s.hitstop -= dt; k *= HITSTOP_SCALE; }
     step(s, dt * k);
   }
-  renderer.render(scene, camera);
+  renderer.clear();
+  renderer.render(scene, camera3D);
+  renderer.clearDepth();
+  renderer.render(scene2D, camera2D);
   if (now - lastBeat > 500) { lastBeat = now; send({ type: 'heartbeat' }); }
 }
 requestAnimationFrame(frame);

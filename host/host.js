@@ -123,6 +123,7 @@ async function loadCatalog() {
         instruction: String(g.instruction || '？'),
         beats: Number(g.beats) === 16 ? 16 : 8,
         timeoutResult: g.timeoutResult === 'win' ? 'win' : 'lose',
+        camera: g.camera === 'perspective' ? 'perspective' : 'ortho',
         // 音（game.json の "bgm" と "sounds"）。ゲームフォルダ内の音声ファイルだけを受け付ける
         bgmUrl: safeAudioPath(g.bgm) ? `games/${id}/${g.bgm}` : null,
         soundUrls: Object.fromEntries(
@@ -262,7 +263,7 @@ function loadGame(game, st) {
     url: new URL(`games/${game.id}/main.js?v=${v}`, location.href).href,
     base: new URL(`games/${game.id}/`, location.href).href,
     speed: st.speed, difficulty: st.difficulty, beats: game.beats,
-    timeoutResult: game.timeoutResult, seed: (Math.random() * 0x7fffffff) | 0,
+    timeoutResult: game.timeoutResult, camera: game.camera, seed: (Math.random() * 0x7fffffff) | 0,
   });
   const ready = waitFor(m => m.runId === id && (m.type === 'ready' || m.type === 'error'), 10000)
     .then(m => m.type === 'ready', () => false);

@@ -110,3 +110,11 @@ At the end, print the list of files you created with their pixel sizes.
 
 - 「ticking clock」を入れたクイズ曲はテンポが 82〜127 BPM とばらついた。外すと 5 本とも 119 BPM になった
 - 生成できる長さは 1 秒以上（ComfyUI の EmptyLatentAudio の下限）
+
+### 隕石を撃て（3D）の音
+
+| ファイル | 秒 | プロンプト |
+| --- | --- | --- |
+| games/meteor/assets/bgm.mp3 | 6 | Space shooter synthwave groove at a steady 120 BPM, four on the floor kick drum, driving arpeggiated bass, heroic retro synth lead, continuous, starts immediately on the downbeat（seed 2） |
+| games/meteor/assets/boom.mp3 | 1.5 | Retro arcade explosion boom sound effect, short and punchy, crunchy, no music |
+| games/meteor/assets/zap.mp3 | 1 | Short sci-fi laser zap sound effect, quick pew, no music |
