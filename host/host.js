@@ -66,6 +66,7 @@ window.addEventListener('message', e => {
   if (!m || typeof m !== 'object' || typeof m.type !== 'string') return;
   lastHeartbeat = performance.now();
   if (m.type === 'sound') { if (m.runId === runId && typeof m.id === 'string') play(m.id); return; }
+  if (m.type === 'fetchAsset') { sendAsset(m); return; }
   if (m.type === 'error') { console.error('[minigame]', m.message); showError(String(m.message)); }
   for (const l of [...listeners]) l(m);
 });
@@ -79,6 +80,26 @@ function waitFor(pred, timeout) {
   });
 }
 const post = m => frame && frame.contentWindow && frame.contentWindow.postMessage(m, '*');
+
+// ---- サンドボックスからの素材ファイルの依頼（VRM など）
+// サンドボックスは通信できないので、本体が「いま遊んでいるゲームのフォルダ内のファイル」だけを取得して渡す
+const ASSET_MAX_BYTES = 30 * 1024 * 1024;
+const safeAssetPath = p => typeof p === 'string' && p.length < 200 && /^[\w\-./]+\.(vrm|vrma|glb|gltf|bin|png|jpg|jpeg|webp|json)$/i.test(p) && !p.includes('..') && !p.startsWith('/');
+let currentGameId = null;
+async function sendAsset(m) {
+  const reply = (extra, transfer = []) => frame && frame.contentWindow && frame.contentWindow.postMessage({ type: 'asset', reqId: m.reqId, ...extra }, '*', transfer);
+  try {
+    if (m.runId !== runId || !currentGameId) throw new Error('いまのゲームからの依頼ではありません');
+    if (!safeAssetPath(m.path)) throw new Error(`読み込めないファイル名です: ${m.path}`);
+    const r = await fetch(`games/${currentGameId}/${m.path}`);
+    if (!r.ok) throw new Error(`${m.path}: ${r.status}`);
+    const data = await r.arrayBuffer();
+    if (data.byteLength > ASSET_MAX_BYTES) throw new Error(`${m.path} が大きすぎます（${(data.byteLength / 1e6).toFixed(1)}MB）`);
+    reply({ ok: true, data }, [data]);
+  } catch (err) {
+    reply({ ok: false, error: String(err && err.message ? err.message : err) });
+  }
+}
 
 async function createFrame() {
   if (frame) frame.remove();
@@ -256,6 +277,7 @@ async function beatPhase(T, beats, spb, { sounds, onBeat } = {}) {
 // ---------------------------------------------------------------- ミニゲーム
 function loadGame(game, st) {
   const id = ++runId;
+  currentGameId = game.id;
   const v = encodeURIComponent(self.APP_VERSION);
   lastHeartbeat = performance.now();
   post({
@@ -265,7 +287,7 @@ function loadGame(game, st) {
     speed: st.speed, difficulty: st.difficulty, beats: game.beats,
     timeoutResult: game.timeoutResult, camera: game.camera, seed: (Math.random() * 0x7fffffff) | 0,
   });
-  const ready = waitFor(m => m.runId === id && (m.type === 'ready' || m.type === 'error'), 10000)
+  const ready = waitFor(m => m.runId === id && (m.type === 'ready' || m.type === 'error'), 20000)
     .then(m => m.type === 'ready', () => false);
   const audio = Promise.all([game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean).map(loadSound));
   return Promise.all([ready, audio]).then(([ok]) => ok);

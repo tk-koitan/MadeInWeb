@@ -59,6 +59,42 @@ function makeCamera3D(kind) {
   return cam;
 }
 
+// ---------------------------------------------------------------- 素材ファイルの取得
+// サンドボックスは通信できない（CSP）ので、本体に頼んで「自分のゲームフォルダ内のファイル」だけを受け取る
+const assetRequests = new Map();
+let assetReqId = 0;
+function fetchAsset(s, path) {
+  return new Promise((resolve, reject) => {
+    const reqId = ++assetReqId;
+    assetRequests.set(reqId, { resolve, reject });
+    send({ type: 'fetchAsset', runId: s.runId, reqId, path: String(path) });
+    setTimeout(() => { if (assetRequests.delete(reqId)) reject(new Error(`読み込みがタイムアウトしました: ${path}`)); }, 30000);
+  });
+}
+
+// ---------------------------------------------------------------- VRM（使うゲームが呼んだときだけライブラリを読み込む）
+let vrmLib = null;
+function loadVrmLib() {
+  vrmLib ||= Promise.all([
+    import('../vendor/three-addons/loaders/GLTFLoader.js'),
+    import('../vendor/three-vrm/three-vrm.module.min.js'),
+    import('../vendor/three-vrm/three-vrm-animation.module.min.js'),
+  ]).then(([gltf, vrm, anim]) => ({ ...gltf, ...vrm, ...anim }));
+  return vrmLib;
+}
+let vrmUtils = null;   // 片付け用（読み込み後にセット）
+/** glTF / VRM を読み込むローダー。埋め込み画像は通信を使わない <img> で読む（CSP で fetch が使えないため） */
+function makeGltfLoader(lib, plugin) {
+  const loader = new lib.GLTFLoader();
+  loader.register(parser => {
+    parser.textureLoader = new THREE.TextureLoader(parser.options.manager);
+    parser.textureLoader.setCrossOrigin(parser.options.crossOrigin);
+    return { name: 'madeinweb_img_textures' };
+  });
+  loader.register(plugin);
+  return loader;
+}
+
 // ---------------------------------------------------------------- ポストエフェクト
 // ミニゲームが ctx.bloom() / ctx.addPass() を呼んだときだけ使う（使わないゲームは今までどおり直接描く）。
 // layers: '3d' … 3D の層だけにかける（2D の層はあとから、くっきりしたまま重ねる）
@@ -419,6 +455,55 @@ function makeCtx(s, m) {
     addPass(pass, { layers = '3d' } = {}) { return insertPass(pass, layers); },
     FX: { ShaderPass, UnrealBloomPass, RenderPass },
 
+    // ---- VRM（人型アバター）
+    /**
+     * VRM を読み込む（ゲーム開始前に読み込み完了を待つ）。返り値は three-vrm の VRM。
+     * vrm.scene を ctx.scene に追加して使う。単位はメートルで、+Z（カメラ側）を向いて立つ。
+     * 表情・揺れもの・視線の更新は毎フレーム自動で行う
+     */
+    loadVRM(path) {
+      const p = (async () => {
+        const [lib, data] = await Promise.all([loadVrmLib(), fetchAsset(s, path)]);
+        vrmUtils = lib.VRMUtils;
+        const loader = makeGltfLoader(lib, parser => new lib.VRMLoaderPlugin(parser));
+        const gltf = await loader.parseAsync(data, m.base);
+        const vrm = gltf.userData.vrm;
+        if (!vrm) throw new Error(`VRM ではありません: ${path}`);
+        lib.VRMUtils.removeUnnecessaryVertices(gltf.scene);
+        lib.VRMUtils.combineSkeletons(gltf.scene);
+        lib.VRMUtils.rotateVRM0(vrm);                       // 古い VRM 0.x も +Z 向きにそろえる
+        vrm.scene.traverse(o => { o.frustumCulled = false; });
+        if (session === s) s.vrms.push(vrm);
+        return vrm;
+      })();
+      s.pending.push(p.catch(err => report(err)));
+      return p;
+    },
+    /** VRM アニメーション（.vrma）を読み込む */
+    loadVRMAnimation(path) {
+      const p = (async () => {
+        const [lib, data] = await Promise.all([loadVrmLib(), fetchAsset(s, path)]);
+        const loader = makeGltfLoader(lib, parser => new lib.VRMAnimationLoaderPlugin(parser));
+        const gltf = await loader.parseAsync(data, m.base);
+        const anim = gltf.userData.vrmAnimations && gltf.userData.vrmAnimations[0];
+        if (!anim) throw new Error(`VRM アニメーションではありません: ${path}`);
+        return anim;
+      })();
+      s.pending.push(p.catch(err => report(err)));
+      return p;
+    },
+    /** VRM にアニメーションを再生させる（毎フレーム自動で進む）。返り値は THREE.AnimationAction */
+    async playVRMAnimation(vrm, anim, { loop = true } = {}) {
+      const lib = await loadVrmLib();
+      const mixer = new THREE.AnimationMixer(vrm.scene);
+      const action = mixer.clipAction(lib.createVRMAnimationClip(anim, vrm));
+      action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+      action.clampWhenFinished = !loop;
+      action.play();
+      if (session === s) s.mixers.push(mixer);
+      return action;
+    },
+
     THREE, scene,
     /** 3D の層のカメラ。game.json の "camera" が "perspective" なら遠近感あり */
     get camera3D() { return camera3D; },
@@ -519,6 +604,7 @@ function finish(s, win, byTimeup = false) {
 
 function unload() {
   disposeComposer();
+  if (session && vrmUtils) for (const vrm of session.vrms) vrmUtils.deepDispose(vrm.scene);
   session = null;
   for (const sc of [scene, scene2D]) for (const c of [...sc.children]) { sc.remove(c); disposeObject(c); }
   scene.background = null;
@@ -529,6 +615,7 @@ async function load(m) {
   unload();
   const s = {
     runId: m.runId, nodes: new Set(), tweens: [], timers: [], handlers: {}, beatHandlers: [], nextBeat: 0, pending: [],
+    vrms: [], mixers: [],
     result: null, started: false, time: 0, speed: Number(m.speed) || 1,
     timeoutResult: m.timeoutResult === 'win' ? 'win' : 'lose', game: null, ctx: null,
   };
@@ -561,6 +648,13 @@ window.addEventListener('message', e => {
     case 'start': if (s && s.runId === m.runId) s.started = true; break;
     case 'timeup': if (s && s.runId === m.runId && !s.result) finish(s, s.timeoutResult === 'win', true); break;
     case 'unload': unload(); break;
+    case 'asset': {
+      const r = assetRequests.get(m.reqId);
+      if (!r) break;
+      assetRequests.delete(m.reqId);
+      if (m.ok && m.data instanceof ArrayBuffer) r.resolve(m.data); else r.reject(new Error(String(m.error || '読み込みに失敗しました')));
+      break;
+    }
   }
 });
 window.addEventListener('error', e => report(e.error || e.message));
@@ -588,6 +682,8 @@ function step(s, dt) {
     if (!tw.node.removed) for (const p in tw.to) tw.node[p] = tw.from[p] + (tw.to[p] - tw.from[p]) * e;
     if (k >= 1 || tw.node.removed) { s.tweens.splice(s.tweens.indexOf(tw), 1); tw.resolve(); }
   }
+  for (const mixer of s.mixers) mixer.update(dt);
+  for (const vrm of s.vrms) vrm.update(dt);
   for (const n of s.nodes) {
     if (n.vx) n.x += n.vx * dt;
     if (n.vy) n.y += n.vy * dt;
@@ -599,7 +695,8 @@ function step(s, dt) {
 let last = performance.now(), lastBeat = 0;
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min((now - last) / 1000, 0.05);
+  // 描画が重くても本体の拍とずれすぎないよう、1フレームで最大 0.1 秒まで進める
+  const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
   const s = session;
   if (s && s.started) {

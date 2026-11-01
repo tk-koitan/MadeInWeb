@@ -1,0 +1,6 @@
+avatar.vrm
+  元のモデル: VRM1_Constraint_Twist_Sample（(c) 2022 pixiv Inc.）
+  入手元: https://github.com/pixiv/three-vrm （packages/three-vrm/examples/models/）
+  ライセンス: VRM Public License 1.0（https://vrm.dev/licenses/1.0/）
+    - アバター利用: 誰でも可 / 商用利用: 法人も可 / 改変して再配布: 可 / クレジット表記: 不要
+  改変: tools/vrm-slim.mjs でテクスチャを縮小（色 1024px、法線マップ 512px、サムネイル 256px）

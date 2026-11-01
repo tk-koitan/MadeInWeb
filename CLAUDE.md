@@ -14,6 +14,7 @@ GitHub Pages: https://tk-koitan.github.io/MadeInWeb/ （`main` ブランチの�
 | `version.js` | バージョン番号。配信するたびに上げる（PWA キャッシュも更新される） |
 | `sw.js`, `manifest.webmanifest`, `icons/` | PWA |
 | `tools/serve.mjs` | 開発サーバー（`npm run dev`） |
+| `tools/sprite.mjs`, `tools/vrm-slim.mjs`, `tools/comfy-audio.mjs` | 素材づくり（`tools/ASSETS.md`） |
 
 ## ミニゲームを作る・直すとき
 
@@ -26,4 +27,5 @@ GitHub Pages: https://tk-koitan.github.io/MadeInWeb/ （`main` ブランチの�
 - サンドボックスはオリジンを持たない（opaque origin）ので、サンドボックス内のファイルは CORS 付きで配信する必要がある。`python -m http.server` などでは動かない。`npm run dev` を使う
 - `sandbox/sandbox.html` の CSP にある `https://tk-koitan.github.io` は、開発サーバーが配信時に置き換える
 - 本番の更新を配信するときは `version.js` の番号を上げる
+- サンドボックスの CSP（通信禁止）は緩めない。ゲームが大きなファイルを読むときは、本体の `fetchAsset`（自分のゲームフォルダ内だけ）を経由する
 - git の作者・push は `tk-koitan` アカウント（このリポジトリのローカル設定済み）。グローバル設定は変えない

@@ -176,6 +176,31 @@ ctx.tween(bloom, { strength: 2 }, { duration: 0.3 });                          /
 - 使わないゲームには影響しない。使うゲームはスマホで少し重くなるので、1つのゲームでパスは 1〜2 個までを目安にする
 - サンプル：`games/stars`
 
+### VRM（人型アバター）
+
+```js
+async init(ctx) {
+  this.vrm = await ctx.loadVRM('assets/avatar.vrm');    // ゲーム開始前に読み込みが終わる
+  ctx.scene.add(this.vrm.scene);                         // 単位はメートル。+Z（カメラ側）を向いて立つ
+  ctx.camera3D.position.set(0, 1.0, 2.8);                // カメラをキャラクターに向け直す
+  ctx.camera3D.lookAt(0, 0.92, 0);
+  this.vrm.humanoid.getNormalizedBoneNode('leftUpperArm').rotation.z = -1.2;   // 腕を下ろす（T ポーズが基準）
+  this.vrm.expressionManager.setValue('happy', 1);                            // 表情
+}
+```
+
+| API | 内容 |
+| --- | --- |
+| `ctx.loadVRM(path)` | VRM（0.x / 1.0）を読み込む。揺れもの・表情・視線は毎フレーム自動で更新される |
+| `ctx.loadVRMAnimation(path)` | VRM アニメーション（.vrma）を読み込む |
+| `ctx.playVRMAnimation(vrm, anim, { loop })` | アニメーションを再生する（自動で進む） |
+
+- `game.json` に `"camera": "perspective"` を指定すると立体的に見える（サンプル `games/pose`）
+- キャラクターの左腕は画面の右側に見える（カメラと向かい合っているため）
+- VRM は大きい（数 MB〜数十 MB）。`node tools/vrm-slim.mjs <入力.vrm> <出力.vrm>` でテクスチャを縮めてから使う
+- **ライセンスを必ず確認する**。VRM の中に利用条件が入っている（`vrm-slim` が表示する）。再配布が許可されていないモデルは使えない。出典は `assets/CREDIT.txt` に書く
+- サンドボックスは通信できないので、モデルは本体が代わりに読み込んで渡す（自分のゲームフォルダ内のファイルだけ）
+
 ## 禁止事項
 
 - `fetch`、外部 URL、`localStorage`、キーボード入力（サンドボックスで遮断されています）

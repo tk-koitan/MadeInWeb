@@ -129,3 +129,15 @@ At the end, print the list of files you created with their pixel sizes.
 | games/stars/assets/fizzle.mp3 | 1 | Soft glass fizzle sound effect, gentle electric spark fading out, short, no music |
 
 - 「dreamy」「warm pads」など穏やかな言葉の曲は 2.5〜4 秒で弱まった。「energetic」「continuous loop with no fade out」で最後まで鳴り続けた
+
+## VRM
+
+- games/pose/assets/avatar.vrm … pixiv の VRM1_Constraint_Twist_Sample（three-vrm のサンプル）。再配布・改変可、クレジット不要。`tools/vrm-slim.mjs` でテクスチャを縮小（10.8MB → 6.05MB）
+
+### ポーズまねの音
+
+| ファイル | 秒 | プロンプト |
+| --- | --- | --- |
+| games/pose/assets/bgm.mp3 | 12 | Energetic J-pop dance groove at a steady 120 BPM, four on the floor kick drum, funky slap bass, bright synth brass hits, cheerful idol stage music, continuous loop with no fade out, starts immediately on the downbeat（seed 1） |
+| games/pose/assets/cue.mp3 | 1 | Short bright cue whistle blip sound effect, single upward chirp, no music |
+| games/pose/assets/good.mp3 | 1 | Cheerful sparkle success ding sound effect, short and bright, no music |

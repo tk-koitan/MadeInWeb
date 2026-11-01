@@ -1,0 +1,14 @@
+{
+  "sdk": "0.1",
+  "author": "koitan",
+  "title": "ポーズまね（VRM）",
+  "instruction": "まねろ！",
+  "beats": 16,
+  "timeoutResult": "lose",
+  "camera": "perspective",
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "cue": "assets/cue.mp3",
+    "good": "assets/good.mp3"
+  }
+}
