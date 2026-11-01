@@ -46,11 +46,11 @@ node tools/comfy-audio.mjs "<英語のプロンプト>" <秒数> <出力.mp3> [-
 
 | ファイル | 秒 | プロンプト |
 | --- | --- | --- |
-| audio/start.mp3 | 3 | Short energetic game show start fanfare jingle, 120 BPM, bright brass stabs and snare drum roll, cheerful, ends cleanly on the downbeat |
+| audio/start.mp3 | 4（先頭2秒を使用） | Energetic game show start fanfare groove at a steady 120 BPM, four on the floor kick drum, bright brass stabs and snare fills, exciting, continuous, starts immediately on the downbeat（seed 4） |
 | audio/prepare.mp3 | 4 | Upbeat funky drum and bass groove, 120 BPM, punchy kick and snare, slap bass, cheerful game show transition music, starts immediately on the downbeat |
 | audio/speedup.mp3 | 3 | Fast rising arcade speed-up jingle, quickly ascending synth arpeggio, 120 BPM, exciting, energetic |
-| audio/win.mp3 | 2.5 | Short happy success jingle, cheerful ascending xylophone and brass fanfare, cartoon game victory sting |
-| audio/lose.mp3 | 2.5 | Short comedic failure jingle, descending sad trombone wah wah wah, cartoon game fail sting |
+| audio/win.mp3 | 4（先頭2秒を使用） | Happy victory groove at a steady 120 BPM, four on the floor kick drum, bright brass fanfare melody over a funky bassline, game show success music, continuous, starts immediately on the downbeat（seed 2） |
+| audio/lose.mp3 | 4（先頭2秒を使用） | Comedic failure groove at a steady 120 BPM, four on the floor kick drum, sad trombone wah wah melody over a bouncy bassline, cartoon game fail music, continuous, starts immediately on the downbeat（seed 6） |
 | audio/gameover.mp3 | 5 | Game over jingle, slow descending melody, retro arcade synth, melancholic but cute, ends with a long final note |
 | audio/whoosh.mp3 | 1 | Quick swipe whoosh sound effect, fast air swish, short and clean, no music |
 | games/balloon/assets/bgm.mp3 | 6 | Bouncy cheerful circus style chiptune, 120 BPM, playful staccato melody, light percussion, party atmosphere, starts immediately |
@@ -64,3 +64,4 @@ node tools/comfy-audio.mjs "<英語のプロンプト>" <秒数> <出力.mp3> [-
 | games/spin3d/assets/clear.mp3 | 1.5 | Bright magical chime success sound effect, sparkle ding, short, no music |
 
 - 「fast」「urgent」などの速さを表す言葉を入れると、120 BPM を指定してもテンポがずれた（約 107 BPM）。「steady 120 BPM, four on the floor」と書くと合った
+- ジングルを「short jingle / sting」として頼むと 1〜1.5 秒で終わり、4拍（2秒）の後半が無音になった。「groove at a steady 120 BPM, four on the floor, continuous」として 4 秒で生成し、候補を数本作って 2 秒まで途切れないものを選ぶとよい
