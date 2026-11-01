@@ -29,3 +29,15 @@ Transparent assets: genuinely TRANSPARENT background with a real alpha channel (
 
 At the end, print the list of files you created with their pixel sizes.
 ```
+
+## 音声（ComfyUI + Stable Audio 3）
+
+LAN 上の Ubuntu PC（http://192.168.10.116:8188）の ComfyUI で生成する。
+
+```
+node tools/comfy-audio.mjs "<英語のプロンプト>" <秒数> <出力.mp3> [--seed N]
+```
+
+- ワークフローは ComfyUI 付属テンプレート「Stable Audio 3.0 Medium」の中核部分（8ステップ、lcm、cfg 1）
+- 1本 1〜8 秒程度で生成できる（初回はモデルの読み込みで遅い）
+- 効果音は短く鋭い音になりやすい。BGM はテンポ指定（例: 120 BPM）がほぼ守られるが、終わりに無音が入ることがある
