@@ -4,5 +4,9 @@
   "author": "koitan",
   "instruction": "割れ！",
   "beats": 8,
-  "timeoutResult": "lose"
+  "timeoutResult": "lose",
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "pop": "assets/pop.mp3"
+  }
 }

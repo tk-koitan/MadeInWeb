@@ -4,5 +4,10 @@
   "author": "koitan",
   "instruction": "回せ！",
   "beats": 16,
-  "timeoutResult": "lose"
+  "timeoutResult": "lose",
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "spin": "assets/spin.mp3",
+    "clear": "assets/clear.mp3"
+  }
 }

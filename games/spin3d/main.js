@@ -44,7 +44,7 @@ export default {
       ctx.sound.play('spin');
     }
     if (this.turns >= this.goal) {
-      ctx.sound.play('coin');
+      ctx.sound.play('clear');
       this.label.color = '#e4572e';
       ctx.tween(this.cube, { scale: 1.25 }, { duration: 0.2, ease: 'back' });
       ctx.win();

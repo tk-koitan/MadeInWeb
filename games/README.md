@@ -29,6 +29,8 @@ games/<id>/
 | `instruction` | 開始時に大きく出る指示。短い命令形（「割れ！」「よけろ！」） |
 | `beats` | 長さ（拍）。`8` か `16`。テンポは最初 120bpm（1拍0.5秒）で、スピードアップすると速くなる |
 | `timeoutResult` | 時間切れのときの結果。達成型は `"lose"`、生き残り型は `"win"` |
+| `bgm` | 任意。ミニゲーム中に流す曲（例 `"assets/bgm.mp3"`）。**120 BPM** で作り、拍数ぶんの長さ以上にする。テンポが上がると速く再生される |
+| `sounds` | 任意。効果音の一覧（例 `{ "pop": "assets/pop.mp3" }`）。`ctx.sound.play("pop")` で鳴る。組み込みの音と同じ名前なら上書きする |
 
 ## main.js
 
@@ -128,7 +130,7 @@ ctx.input.x; ctx.input.y; ctx.input.down;
 
 ### 音
 
-`ctx.sound.play(id)`：`pop` `hit` `coin` `jump` `tick` `whoosh` `spin`
+`ctx.sound.play(id)`：`game.json` の `sounds` に書いた名前、または組み込みの `pop` `hit` `coin` `jump` `tick` `whoosh` `spin`
 
 ### 乱数
 
@@ -151,7 +153,8 @@ ctx.input.x; ctx.input.y; ctx.input.down;
 
 - `assets/` に PNG を置く。画像の読み込みが終わってからゲームが始まる
 - 生成した画像は `node tools/sprite.mjs <入力.png> games/<id>/assets/<名前>.png --max 256` で整える（透過のゴミ取り・余白の切り取り・縮小）。3D のテクスチャは `--opaque` を付ける
-- 1本あたりの素材は合計 500KB 程度までを目安にする
+- 音声は mp3 を推奨。生成した場合は `node tools/comfy-audio.mjs` を使う（`tools/ASSETS.md`）
+- 1本あたりの素材は、画像と音声の合計で 1MB 程度までを目安にする
 
 ## テストプレイ
 

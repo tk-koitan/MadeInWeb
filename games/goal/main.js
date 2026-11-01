@@ -21,7 +21,7 @@ export default {
       if (ctx.distance(ball, this.hole) < this.goalR) {
         ball.draggable = false;
         this.inHole = true;
-        ctx.sound.play('coin');
+        ctx.sound.play('cup');
         ctx.tween(ball, { x: this.hole.x, y: this.hole.y, scale: 0.6 }, { duration: 0.15 });
         ctx.win();
       }

@@ -9,7 +9,7 @@
 //   &difficulty=1..3     難易度を固定
 //   &speed=0.5..3        スピード（テンポの倍率）を固定
 //   ?debug               通常モードでもエラーを表示
-import { unlockAudio, play, clock } from './sfx.js';
+import { unlockAudio, play, clock, playMusic, loadSound, registerSounds, setGameSounds } from './sfx.js';
 
 const params = new URLSearchParams(location.search);
 const DEV_GAME = params.get('game');
@@ -24,6 +24,18 @@ const SPEED_STEP = 0.15;        // 4本クリアごとにテンポ +15%
 const SPEED_MAX = 2.0;          // 最大 240bpm
 const SPEED_EVERY = 4;
 const DIFFICULTY_EVERY = 8;     // 8本クリアごとに難易度 +1
+
+// 本体の音楽（120bpm で生成。テンポが上がったら速く再生する）
+const HOST_MUSIC = {
+  start: 'audio/start.mp3',
+  prepare: 'audio/prepare.mp3',
+  speedup: 'audio/speedup.mp3',
+  win: 'audio/win.mp3',
+  lose: 'audio/lose.mp3',
+  gameover: 'audio/gameover.mp3',
+};
+/** 本体の音楽を beats 拍ぶん鳴らす。ファイルがなければ false（合成音で代わりに鳴らす） */
+const music = (key, at, beats, spb) => playMusic(HOST_MUSIC[key], at, beats * spb, { rate: 60 / spb / BASE_BPM });
 
 function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
 const $ = id => document.getElementById(id);
@@ -93,6 +105,8 @@ async function fetchJSON(url) {
   if (!r.ok) throw new Error(`${url}: ${r.status}`);
   return r.json();
 }
+const safeAudioPath = p => typeof p === 'string' && /^[\w\-./]+\.(mp3|ogg|wav|m4a)$/i.test(p) && !p.includes('..') && !p.startsWith('/');
+
 async function loadCatalog() {
   const ids = await fetchJSON('games/index.json');
   const list = [];
@@ -106,6 +120,14 @@ async function loadCatalog() {
         instruction: String(g.instruction || '？'),
         beats: Number(g.beats) === 16 ? 16 : 8,
         timeoutResult: g.timeoutResult === 'win' ? 'win' : 'lose',
+        // 音（game.json の "bgm" と "sounds"）。ゲームフォルダ内の音声ファイルだけを受け付ける
+        bgmUrl: safeAudioPath(g.bgm) ? `games/${id}/${g.bgm}` : null,
+        soundUrls: Object.fromEntries(
+          Object.entries(g.sounds && typeof g.sounds === 'object' ? g.sounds : {})
+            .filter(([k, v]) => /^[a-z0-9_-]{1,32}$/i.test(k) && safeAudioPath(v))
+            .slice(0, 16)
+            .map(([k, v]) => [k, `games/${id}/${v}`]),
+        ),
       });
     } catch (err) {
       console.error(`games/${id}/game.json を読み込めません`, err);
@@ -215,8 +237,10 @@ function loadGame(game, st) {
     speed: st.speed, difficulty: st.difficulty, beats: game.beats,
     timeoutResult: game.timeoutResult, seed: (Math.random() * 0x7fffffff) | 0,
   });
-  return waitFor(m => m.runId === id && (m.type === 'ready' || m.type === 'error'), 10000)
+  const ready = waitFor(m => m.runId === id && (m.type === 'ready' || m.type === 'error'), 10000)
     .then(m => m.type === 'ready', () => false);
+  const audio = Promise.all([game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean).map(loadSound));
+  return Promise.all([ready, audio]).then(([ok]) => ok);
 }
 
 /** ミニゲームの区間。拍数ぶん遊ばせて、結果を返す（途中で決まっても最後まで続ける） */
@@ -232,10 +256,13 @@ async function gamePhase(T, game, spb) {
   };
   listeners.add(resultL);
 
-  // 拍の音：ふだんは弱いハイハット、最後の4拍はカウント音
+  // ミニゲームの BGM と効果音。BGM がなければ合成音で拍を刻む。最後の4拍はカウント音
+  setGameSounds(game.soundUrls);
+  const hasBgm = game.bgmUrl && playMusic(game.bgmUrl, T, beats * spb, { rate: 60 / spb / BASE_BPM, gain: 0.6 });
   for (let i = 0; i < beats; i++) {
-    play(i >= beats - 4 ? 'count' : 'hatSoft', T + i * spb);
-    if (i % 2 === 0) play('kick', T + i * spb);
+    if (i >= beats - 4) play('count', T + i * spb);
+    else if (!hasBgm) play('hatSoft', T + i * spb);
+    if (!hasBgm && i % 2 === 0) play('kick', T + i * spb);
   }
 
   await waitUntil(T);
@@ -271,9 +298,10 @@ async function runSession(catalog) {
   let T = clock() + 0.1;
   let spb = spbOf();
   curtain({ title: lifeText(st.lives), main: '0', sub: 'スタート！' });
-  play('start', T);
+  const startMusic = music('start', T, BEATS.start, spb);
+  if (!startMusic) play('start', T);
   T = await beatPhase(T, BEATS.start, spb, {
-    sounds: i => ['kick', 'hat'],
+    sounds: () => (startMusic ? [] : ['kick', 'hat']),
     onBeat: () => pulse(spb),
   });
 
@@ -293,9 +321,10 @@ async function runSession(catalog) {
     const prepEnd = T + BEATS.prepare * spb;
     const prep = { title: lifeText(st.lives), main: String(st.count), sub: speedUp ? 'スピードアップ！' : '', hint: devHint(game) };
 
-    if (speedUp) play('speedup', T);
+    const prepMusic = music(speedUp ? 'speedup' : 'prepare', T, BEATS.prepare, spb);
+    if (speedUp && !prepMusic) play('speedup', T);
     beatPhase(T, BEATS.prepare, spb, {           // 拍は裏で刻み続ける
-      sounds: i => (i % 2 === 1 ? ['kick', 'snare'] : ['kick', 'hat']),
+      sounds: i => (prepMusic ? [] : i % 2 === 1 ? ['kick', 'snare'] : ['kick', 'hat']),
       onBeat: () => pulse(spb),
     });
     if (fromGame) {
@@ -328,11 +357,12 @@ async function runSession(catalog) {
 
     // 結果（4拍）
     if (r.win) st.count++; else st.lives--;
-    play(r.win ? 'ok' : 'ng', T);
+    const resultMusic = music(r.win ? 'win' : 'lose', T, BEATS.result, spb);
+    if (!resultMusic) play(r.win ? 'ok' : 'ng', T);
     showMark(r.win);
     showTimer(false);
     if (r.loadFailed) showError(`「${game.title}」を読み込めませんでした`);
-    T = await beatPhase(T, BEATS.result, spb, { sounds: i => (i === 0 ? [] : ['kick']) });
+    T = await beatPhase(T, BEATS.result, spb, { sounds: i => (resultMusic || i === 0 ? [] : ['kick']) });
     if (r.crashed) { await recoverFrame(); T = Math.max(T, clock() + 0.05); }
     fromGame = true;
 
@@ -343,7 +373,7 @@ async function runSession(catalog) {
   await swipeToCurtain({ title: 'GAME OVER', main: String(st.count), sub: 'クリアした数', hint: 'タップでタイトルへ' }, swipeDur(spb));
   post({ type: 'unload' });
   hideMark();
-  play('gameover');
+  if (!playMusic(HOST_MUSIC.gameover, undefined, 6)) play('gameover');
   await sleep(1000);
   await waitTap();
 }
@@ -366,6 +396,8 @@ if ('serviceWorker' in navigator) {
 
 (async () => {
   $('version').textContent = 'v' + self.APP_VERSION;
+  registerSounds({ whoosh: 'audio/whoosh.mp3' });
+  for (const url of Object.values(HOST_MUSIC)) loadSound(url);
   curtain({ title: 'MadeInWeb', hint: '読み込み中…' });
   let catalog;
   try {

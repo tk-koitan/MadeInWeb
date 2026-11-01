@@ -4,5 +4,9 @@
   "author": "koitan",
   "instruction": "よけろ！",
   "beats": 8,
-  "timeoutResult": "win"
+  "timeoutResult": "win",
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "hit": "assets/hit.mp3"
+  }
 }
