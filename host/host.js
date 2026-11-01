@@ -35,7 +35,9 @@ const HOST_MUSIC = {
   gameover: 'audio/gameover.mp3',
 };
 /** 本体の音楽を beats 拍ぶん鳴らす。ファイルがなければ false（合成音で代わりに鳴らす） */
-const music = (key, at, beats, spb) => playMusic(HOST_MUSIC[key], at, beats * spb, { rate: 60 / spb / BASE_BPM });
+// スタート・結果の曲は、区間の終わりで切らずに少し次の区間へ重ねてフェードアウトする
+const MUSIC_TAIL = { start: 0.25, win: 0.25, lose: 0.25 };
+const music = (key, at, beats, spb) => playMusic(HOST_MUSIC[key], at, beats * spb, { rate: 60 / spb / BASE_BPM, tail: MUSIC_TAIL[key] || 0 });
 
 function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
 const $ = id => document.getElementById(id);

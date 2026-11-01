@@ -49,7 +49,7 @@ node tools/comfy-audio.mjs "<英語のプロンプト>" <秒数> <出力.mp3> [-
 | audio/start.mp3 | 4（先頭2秒を使用） | Energetic game show start fanfare groove at a steady 120 BPM, four on the floor kick drum, bright brass stabs and snare fills, exciting, continuous, starts immediately on the downbeat（seed 4） |
 | audio/prepare.mp3 | 4 | Upbeat funky drum and bass groove, 120 BPM, punchy kick and snare, slap bass, cheerful game show transition music, starts immediately on the downbeat |
 | audio/speedup.mp3 | 3 | Fast rising arcade speed-up jingle, quickly ascending synth arpeggio, 120 BPM, exciting, energetic |
-| audio/win.mp3 | 4（先頭2秒を使用） | Happy victory groove at a steady 120 BPM, four on the floor kick drum, bright brass fanfare melody over a funky bassline, game show success music, continuous, starts immediately on the downbeat（seed 2） |
+| audio/win.mp3 | 3（2秒で鳴り終わる） | One bar victory fanfare at a steady 120 BPM, four on the floor kick drum, bright brass melody over a funky bassline, game show success music, the phrase resolves with a final chord at the end of the bar, starts immediately on the downbeat（seed 11） |
 | audio/lose.mp3 | 4（先頭2秒を使用） | Comedic failure groove at a steady 120 BPM, four on the floor kick drum, sad trombone wah wah melody over a bouncy bassline, cartoon game fail music, continuous, starts immediately on the downbeat（seed 6） |
 | audio/gameover.mp3 | 5 | Game over jingle, slow descending melody, retro arcade synth, melancholic but cute, ends with a long final note |
 | audio/whoosh.mp3 | 1 | Quick swipe whoosh sound effect, fast air swish, short and clean, no music |
@@ -65,3 +65,4 @@ node tools/comfy-audio.mjs "<英語のプロンプト>" <秒数> <出力.mp3> [-
 
 - 「fast」「urgent」などの速さを表す言葉を入れると、120 BPM を指定してもテンポがずれた（約 107 BPM）。「steady 120 BPM, four on the floor」と書くと合った
 - ジングルを「short jingle / sting」として頼むと 1〜1.5 秒で終わり、4拍（2秒）の後半が無音になった。「groove at a steady 120 BPM, four on the floor, continuous」として 4 秒で生成し、候補を数本作って 2 秒まで途切れないものを選ぶとよい
+- 区間の終わりで曲を切ると、伸びている和音が途切れて聞こえる。「the phrase resolves with a final chord at the end of the bar」と頼み、2秒ちょうどで鳴り終わる候補を選ぶ。再生側でも 0.25 秒重ねてフェードアウトする

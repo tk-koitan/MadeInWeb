@@ -64,7 +64,7 @@ export function loadSound(url) {
   return loading.get(url);
 }
 
-function startBuffer(buf, t, { rate = 1, gain = 1, duration = 0 } = {}) {
+function startBuffer(buf, t, { rate = 1, gain = 1, duration = 0, tail = 0 } = {}) {
   self.__mwPlayed = (self.__mwPlayed || 0) + 1;   // 動作確認用：ファイルの音を鳴らした回数
   const src = ac.createBufferSource(), g = ac.createGain();
   src.buffer = buf;
@@ -73,10 +73,11 @@ function startBuffer(buf, t, { rate = 1, gain = 1, duration = 0 } = {}) {
   src.connect(g).connect(out);
   src.start(t, 0);
   if (duration > 0) {
-    const end = t + duration;
-    g.gain.setValueAtTime(gain, Math.max(t, end - 0.05));
-    g.gain.linearRampToValueAtTime(0, end);
-    src.stop(end + 0.01);
+    // tail 秒ぶん次の区間に重ねてフェードアウトする（0 なら区間の終わりで短く切る）
+    const end = t + duration, fadeFrom = tail > 0 ? end : Math.max(t, end - 0.05), fadeTo = end + tail;
+    g.gain.setValueAtTime(gain, fadeFrom);
+    g.gain.linearRampToValueAtTime(0, fadeTo);
+    src.stop(fadeTo + 0.01);
   }
   return src;
 }
@@ -99,11 +100,11 @@ export const isLoaded = url => !!(url && loaded.get(url));
  * 曲やジングルを鳴らす。at から duration 秒で止める（最後は短くフェードアウト）。
  * rate はテンポの倍率（120bpm の曲を速く鳴らす）。読み込めていなければ false を返す
  */
-export function playMusic(url, at, duration, { rate = 1, gain = 0.7 } = {}) {
+export function playMusic(url, at, duration, { rate = 1, gain = 0.7, tail = 0 } = {}) {
   if (!ac) return false;
   const buf = loaded.get(url);
   if (!buf) return false;
-  startBuffer(buf, audioTime(at), { rate, gain, duration });
+  startBuffer(buf, audioTime(at), { rate, gain, duration, tail });
   return true;
 }
 
