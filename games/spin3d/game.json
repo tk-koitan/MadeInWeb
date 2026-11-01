@@ -1,0 +1,8 @@
+{
+  "sdk": "0.1",
+  "title": "箱まわし（3D）",
+  "author": "koitan",
+  "instruction": "回せ！",
+  "duration": 5,
+  "timeoutResult": "lose"
+}

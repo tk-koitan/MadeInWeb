@@ -6,6 +6,8 @@ const CACHE = `madeinweb-${self.APP_VERSION}`;
 const CORE = [
   './',
   './index.html',
+  './host/host.js',
+  './host/sfx.js',
   './version.js',
   './manifest.webmanifest',
   './icons/icon-180.png',

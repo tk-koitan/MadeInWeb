@@ -19,61 +19,72 @@
     overscroll-behavior: none; -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none; touch-action: none; }
   body { box-sizing: border-box; display: flex; align-items: center; justify-content: center;
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
   #screen { position: relative; aspect-ratio: 9 / 16;
     height: min(100%, calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 16 / 9));
-    background: #fdf6e3; overflow: hidden; font-family: system-ui, sans-serif; container-type: size; }
-  #label { position: absolute; top: 6%; width: 100%; text-align: center;
-    font-size: 5cqh; font-weight: 700; color: #333; }
-  #info { position: absolute; bottom: 4%; width: 100%; text-align: center; font-size: 2.2cqh; color: #666; }
+    background: #000; overflow: hidden; container-type: size; }
+  iframe.game { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #fff; }
+  .hidden { display: none !important; }
+
+  #timer { position: absolute; left: 5%; right: 5%; bottom: 2.5%; height: 1.4cqh; border-radius: 1cqh;
+    background: rgba(0, 0, 0, .25); overflow: hidden; pointer-events: none; }
+  #timer-bar { width: 100%; height: 100%; background: #f3a712; transform-origin: left center; }
+
+  #instruction { position: absolute; left: 0; right: 0; top: 34%; text-align: center; pointer-events: none;
+    font-size: 12cqw; font-weight: 900; line-height: 1.1; color: #fff;
+    -webkit-text-stroke: 1cqw #222; paint-order: stroke fill; opacity: 0; }
+  #instruction.show { animation: pop 1.3s ease-out forwards; }
+  @keyframes pop {
+    0% { opacity: 0; transform: scale(.3); }
+    12% { opacity: 1; transform: scale(1.15); }
+    22% { transform: scale(1); }
+    75% { opacity: 1; }
+    100% { opacity: 0; transform: scale(1.05); }
+  }
+
+  #mark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 50cqw; font-weight: 900; pointer-events: none;
+    -webkit-text-stroke: 1.2cqw #fff; paint-order: stroke fill; animation: mark .25s ease-out; }
+  #mark.win { color: #e4572e; }
+  #mark.lose { color: #3d5a80; }
+  @keyframes mark { from { transform: scale(1.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  #curtain { position: absolute; inset: 0; background: #fdf6e3; color: #333; pointer-events: auto;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2cqh; }
+  #c-title { font-size: 5cqh; font-weight: 800; letter-spacing: .05em; color: #e4572e; }
+  #c-main { font-size: 16cqh; font-weight: 900; line-height: 1; }
+  #c-sub { font-size: 3cqh; font-weight: 700; }
+  #c-hint { position: absolute; bottom: 8%; left: 4%; right: 4%; text-align: center; font-size: 2.2cqh; color: #888; }
+  #curtain div:empty { display: none; }
+
   #version { position: absolute; top: 1.2cqh; right: 2cqw; font-size: 1.8cqh; color: #999;
-    font-variant-numeric: tabular-nums; }
-  .dot { position: absolute; width: 12cqw; height: 12cqw; margin: -6cqw 0 0 -6cqw;
-    border-radius: 50%; background: #e4572e; pointer-events: none; }
+    pointer-events: none; font-variant-numeric: tabular-nums; }
+  #error { position: absolute; left: 3%; right: 3%; top: 4%; max-height: 40%; overflow: auto; padding: 8px;
+    border-radius: 6px; background: rgba(150, 0, 0, .92); color: #fff; font: 11px/1.4 monospace;
+    white-space: pre-wrap; pointer-events: auto; }
+
   #rotate { display: none; position: fixed; inset: 0; background: #111; color: #fff;
-    align-items: center; justify-content: center; font: 700 24px system-ui; }
+    align-items: center; justify-content: center; font-size: 24px; font-weight: 700; }
   @media (orientation: landscape) and (pointer: coarse) { #rotate { display: flex; } }
 </style>
 </head>
 <body>
 <div id="screen">
+  <!-- ここにサンドボックス iframe が入る -->
+  <div id="timer" class="hidden"><div id="timer-bar"></div></div>
+  <div id="instruction"></div>
+  <div id="mark" class="hidden"></div>
+  <div id="curtain">
+    <div id="c-title"></div>
+    <div id="c-main"></div>
+    <div id="c-sub"></div>
+    <div id="c-hint"></div>
+  </div>
   <div id="version"></div>
-  <div id="label">MadeInWeb</div>
-  <div id="info">タップ・ドラッグしてみてください<br>540×960 論理座標: <span id="pos">-</span><br><span id="mode"></span></div>
+  <div id="error" class="hidden"></div>
 </div>
 <div id="rotate">縦にしてください</div>
-<script>
-  document.getElementById('version').textContent = 'v' + self.APP_VERSION;
-  const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
-  document.getElementById('mode').textContent = standalone ? 'アプリとして起動中' : 'ブラウザで表示中';
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(err => console.warn('SW registration failed', err));
-  }
-
-  const screen = document.getElementById('screen');
-  const pos = document.getElementById('pos');
-  const dots = new Map();
-  const toLogical = e => {
-    const r = screen.getBoundingClientRect();
-    return { x: (e.clientX - r.left) / r.width * 540, y: (e.clientY - r.top) / r.height * 960 };
-  };
-  const place = (dot, e) => {
-    const p = toLogical(e);
-    dot.style.left = (p.x / 540 * 100) + '%';
-    dot.style.top = (p.y / 960 * 100) + '%';
-    pos.textContent = `${Math.round(p.x)}, ${Math.round(p.y)}`;
-  };
-  screen.addEventListener('pointerdown', e => {
-    screen.setPointerCapture(e.pointerId);
-    const d = document.createElement('div'); d.className = 'dot';
-    screen.appendChild(d); dots.set(e.pointerId, d); place(d, e);
-  });
-  screen.addEventListener('pointermove', e => { const d = dots.get(e.pointerId); if (d) place(d, e); });
-  const end = e => { const d = dots.get(e.pointerId); if (d) { d.remove(); dots.delete(e.pointerId); } };
-  screen.addEventListener('pointerup', end);
-  screen.addEventListener('pointercancel', end);
-  document.addEventListener('contextmenu', e => e.preventDefault());
-</script>
+<script type="module" src="host/host.js"></script>
 </body>
 </html>

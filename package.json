@@ -1,0 +1,8 @@
+{
+  "name": "madeinweb",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node tools/serve.mjs"
+  }
+}

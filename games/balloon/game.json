@@ -1,0 +1,8 @@
+{
+  "sdk": "0.1",
+  "title": "風船わり",
+  "author": "koitan",
+  "instruction": "割れ！",
+  "duration": 5,
+  "timeoutResult": "lose"
+}

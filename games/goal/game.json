@@ -1,0 +1,8 @@
+{
+  "sdk": "0.1",
+  "title": "穴に入れろ",
+  "author": "koitan",
+  "instruction": "入れろ！",
+  "duration": 5,
+  "timeoutResult": "lose"
+}
