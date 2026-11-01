@@ -3,6 +3,11 @@
 // - ミニゲーム（games/<id>/main.js）を読み込み、ctx API を渡して動かす
 // - 座標は論理解像度 540×960（左上が原点、y は下向き）
 import * as THREE from '../vendor/three.module.min.js';
+import { EffectComposer } from '../vendor/three-addons/postprocessing/EffectComposer.js';
+import { RenderPass } from '../vendor/three-addons/postprocessing/RenderPass.js';
+import { ShaderPass } from '../vendor/three-addons/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from '../vendor/three-addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from '../vendor/three-addons/postprocessing/OutputPass.js';
 
 const W = 540, H = 960;
 // ゲーム内時間は 120bpm 基準（1拍 = 0.5秒）。テンポが上がると dt に倍率が掛かる。
@@ -54,7 +59,45 @@ function makeCamera3D(kind) {
   return cam;
 }
 
-const resize = () => renderer.setSize(window.innerWidth, window.innerHeight, true);
+// ---------------------------------------------------------------- ポストエフェクト
+// ミニゲームが ctx.bloom() / ctx.addPass() を呼んだときだけ使う（使わないゲームは今までどおり直接描く）。
+// layers: '3d' … 3D の層だけにかける（2D の層はあとから、くっきりしたまま重ねる）
+//         'all' … 2D の層も含めた画面全体にかける
+let composer = null, fxLayers = '3d';
+const FX_PIXEL_RATIO = () => Math.min(renderer.getPixelRatio(), 1.5);   // スマホで重くなりすぎないように
+function ensureComposer(layers) {
+  if (composer) return composer;
+  fxLayers = layers === 'all' ? 'all' : '3d';
+  composer = new EffectComposer(renderer);
+  composer.setPixelRatio(FX_PIXEL_RATIO());
+  composer.setSize(window.innerWidth, window.innerHeight);
+  composer.addPass(new RenderPass(scene, camera3D));
+  if (fxLayers === 'all') {
+    const p2 = new RenderPass(scene2D, camera2D);
+    p2.clear = false;
+    p2.clearDepth = true;
+    composer.addPass(p2);
+  }
+  composer.addPass(new OutputPass());   // 色空間の変換。常に最後
+  return composer;
+}
+/** 出力の手前（OutputPass の前）にパスを追加する */
+function insertPass(pass, layers) {
+  const c = ensureComposer(layers);
+  c.insertPass(pass, c.passes.length - 1);
+  return pass;
+}
+function disposeComposer() {
+  if (!composer) return;
+  for (const pass of composer.passes) if (pass.dispose) pass.dispose();
+  composer.dispose();
+  composer = null;
+}
+
+const resize = () => {
+  renderer.setSize(window.innerWidth, window.innerHeight, true);
+  if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+};
 window.addEventListener('resize', resize);
 resize();
 
@@ -362,6 +405,20 @@ function makeCtx(s, m) {
     win() { finish(s, true); },
     lose() { finish(s, false); },
 
+    // ---- ポストエフェクト
+    /**
+     * ブルーム（明るいところが光ってにじむ）をかける。返り値の strength / radius / threshold は後から変えてよい
+     * （ctx.tween(bloom, { strength: 3 }) で光を強めるなど）。
+     * 光らせたいものは、色の明るさを 1 より大きくする（例 new THREE.Color(2, 1.6, 0.5)）か threshold を下げる
+     */
+    bloom({ strength = 1, radius = 0.4, threshold = 0.85, layers = '3d' } = {}) {
+      const size = new THREE.Vector2(window.innerWidth, window.innerHeight);
+      return insertPass(new UnrealBloomPass(size, strength, radius, threshold), layers);
+    },
+    /** 任意のポストエフェクトのパスを追加する（上級者向け。クラスは ctx.FX にある） */
+    addPass(pass, { layers = '3d' } = {}) { return insertPass(pass, layers); },
+    FX: { ShaderPass, UnrealBloomPass, RenderPass },
+
     THREE, scene,
     /** 3D の層のカメラ。game.json の "camera" が "perspective" なら遠近感あり */
     get camera3D() { return camera3D; },
@@ -461,6 +518,7 @@ function finish(s, win, byTimeup = false) {
 }
 
 function unload() {
+  disposeComposer();
   session = null;
   for (const sc of [scene, scene2D]) for (const c of [...sc.children]) { sc.remove(c); disposeObject(c); }
   scene.background = null;
@@ -549,10 +607,15 @@ function frame(now) {
     if (s.hitstop > 0) { s.hitstop -= dt; k *= HITSTOP_SCALE; }
     step(s, dt * k);
   }
-  renderer.clear();
-  renderer.render(scene, camera3D);
-  renderer.clearDepth();
-  renderer.render(scene2D, camera2D);
+  if (composer) {
+    composer.render(dt);
+    if (fxLayers === '3d') { renderer.clearDepth(); renderer.render(scene2D, camera2D); }
+  } else {
+    renderer.clear();
+    renderer.render(scene, camera3D);
+    renderer.clearDepth();
+    renderer.render(scene2D, camera2D);
+  }
   if (now - lastBeat > 500) { lastBeat = now; send({ type: 'heartbeat' }); }
 }
 requestAnimationFrame(frame);

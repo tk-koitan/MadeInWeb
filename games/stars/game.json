@@ -1,0 +1,14 @@
+{
+  "sdk": "0.1",
+  "author": "koitan",
+  "title": "星座なぞり",
+  "instruction": "なぞれ！",
+  "beats": 8,
+  "timeoutResult": "lose",
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "chime": "assets/chime.mp3",
+    "shine": "assets/shine.mp3",
+    "fizzle": "assets/fizzle.mp3"
+  }
+}

@@ -118,3 +118,14 @@ At the end, print the list of files you created with their pixel sizes.
 | games/meteor/assets/bgm.mp3 | 6 | Space shooter synthwave groove at a steady 120 BPM, four on the floor kick drum, driving arpeggiated bass, heroic retro synth lead, continuous, starts immediately on the downbeat（seed 2） |
 | games/meteor/assets/boom.mp3 | 1.5 | Retro arcade explosion boom sound effect, short and punchy, crunchy, no music |
 | games/meteor/assets/zap.mp3 | 1 | Short sci-fi laser zap sound effect, quick pew, no music |
+
+### 星座なぞりの音
+
+| ファイル | 秒 | プロンプト |
+| --- | --- | --- |
+| games/stars/assets/bgm.mp3 | 8 | Energetic neon synthwave groove at a steady 120 BPM, four on the floor kick drum, driving bassline, shimmering arpeggios, continuous loop with no fade out, starts immediately on the downbeat（seed 11） |
+| games/stars/assets/chime.mp3 | 1 | Single bright sparkling chime note sound effect, magical twinkle, short, no music |
+| games/stars/assets/shine.mp3 | 2 | Magical shimmering sparkle sweep sound effect, rising glitter whoosh, celebratory, no music |
+| games/stars/assets/fizzle.mp3 | 1 | Soft glass fizzle sound effect, gentle electric spark fading out, short, no music |
+
+- 「dreamy」「warm pads」など穏やかな言葉の曲は 2.5〜4 秒で弱まった。「energetic」「continuous loop with no fade out」で最後まで鳴り続けた

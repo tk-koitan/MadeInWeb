@@ -158,6 +158,24 @@ ctx.input.x; ctx.input.y; ctx.input.down;
 - `"camera": "ortho"`（既定）… 遠近感なし。z を変えても大きさは変わらない（サンプル `games/spin3d`）
 - `"camera": "perspective"` … 遠近感あり。z がプラス（手前）ほど大きく、マイナス（奥）ほど小さく映る。カメラは z ≒ 1030 の位置から画面中央を見ている（サンプル `games/meteor`）
 
+### ポストエフェクト（ブルームなど）
+
+```js
+const bloom = ctx.bloom({ strength: 1.1, radius: 0.55, threshold: 0.9 });   // 3D の層にブルームをかける
+const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2, 1.6, 0.6) }); // 1 より明るい色が光る
+ctx.tween(bloom, { strength: 2 }, { duration: 0.3 });                          // 光を強める演出
+```
+
+| API | 内容 |
+| --- | --- |
+| `ctx.bloom({ strength, radius, threshold, layers })` | ブルームをかける。返り値（UnrealBloomPass）の値は後から変えてよい |
+| `ctx.addPass(pass, { layers })` | 任意のパスを追加する（`ctx.FX.ShaderPass` など） |
+| `layers` | `'3d'`（既定）＝ 3D の層だけ。文字や UI はくっきり残る。`'all'` ＝ 2D の層も含めて画面全体 |
+
+- 光らせたいものは 3D の層に置く（`ctx.add3D` か `ctx.scene.add`）。色の値を 1 より大きくするか、`threshold` を下げる
+- 使わないゲームには影響しない。使うゲームはスマホで少し重くなるので、1つのゲームでパスは 1〜2 個までを目安にする
+- サンプル：`games/stars`
+
 ## 禁止事項
 
 - `fetch`、外部 URL、`localStorage`、キーボード入力（サンドボックスで遮断されています）
