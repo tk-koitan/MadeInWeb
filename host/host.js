@@ -309,12 +309,12 @@ async function runSession(catalog) {
     showTimer(false);
     const loaded = loadGame(game, st);             // 前のゲームは読み込み時に片付けられる
 
-    // 準備の終わりに合わせてスワイプし、スワイプが終わった瞬間にミニゲームを始める
-    await waitUntil(prepEnd - dur);
+    // ミニゲームの1拍目でスワイプを始める（ゲームはスワイプしながら始まる）
+    await waitUntil(prepEnd);
     let r;
     if (await loaded) {
       let gameStart = prepEnd;
-      if (clock() > prepEnd - dur + 0.03) gameStart = clock() + dur;   // 読み込みが間に合わなかったら、そこから拍を取り直す
+      if (clock() > prepEnd + 0.03) gameStart = clock();   // 読み込みが間に合わなかったら、そこから拍を取り直す
       play('whoosh');
       swipeToGame(dur);
       r = await gamePhase(gameStart, game, spb);
