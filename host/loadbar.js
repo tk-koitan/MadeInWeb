@@ -68,6 +68,7 @@ export function addItem(name) {
   if (!raf) raf = requestAnimationFrame(render);
   return {
     progress(done, total) { it.done = done; it.total = total || 0; it.dirty = true; },
+    rename(name) { el.children[0].textContent = name; },
     finish(ok, note = '') {
       if (it.status !== 'busy') return;
       it.status = ok ? 'ok' : 'ng';

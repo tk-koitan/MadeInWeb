@@ -50,7 +50,10 @@ async function bigAsset(event, req) {
     const head = await fetch(req, { method: 'HEAD', cache: 'no-cache' });
     if (head.ok && stamp(head) !== stamp(hit)) await download();
   })().catch(() => {}));
-  return hit;
+  // 保存済みから返したことを本体に知らせる（デバッグ表示で「保存済み」と出る）
+  const headers = new Headers(hit.headers);
+  headers.set('x-madeinweb-cache', 'hit');
+  return new Response(hit.body, { status: hit.status, statusText: hit.statusText, headers });
 }
 
 self.addEventListener('fetch', event => {

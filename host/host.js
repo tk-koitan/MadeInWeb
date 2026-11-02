@@ -118,8 +118,10 @@ async function fetchAssetData(gameId, path, bar) {
   if (!r.ok) throw new Error(`${path}: ${r.status}`);
   const data = await readBody(r, bar);
   if (data.byteLength > ASSET_MAX_BYTES) throw new Error(`${path} が大きすぎます（${(data.byteLength / 1e6).toFixed(1)}MB）`);
+  if (r.headers.get('x-madeinweb-cache') === 'hit') fromSavedCache.add(data);   // アプリに保存済みのものだった（sw.js）
   return data;
 }
+const fromSavedCache = new WeakSet();
 
 // ---- 先読み：いまのゲームを遊んでいる間に、次のゲームのファイルをダウンロードだけしておく。
 // 組み立て（main.js の実行や VRM の解析）は重くて遊んでいるゲームがカクつくので、結果の4拍になってから行う。
@@ -154,7 +156,12 @@ async function sendAsset(m) {
     bar = DEBUG ? addItem(early ? `${m.path}（先読み）` : m.path) : null;
     let data = early ? await early.catch(() => null) : null;
     if (!data) data = await fetchAssetData(currentGameId, m.path, bar);
-    if (bar) { bar.progress(data.byteLength, data.byteLength); bar.finish(true); }
+    if (bar) {
+      const tags = [early && '先読み', fromSavedCache.has(data) && '保存済み'].filter(Boolean);
+      bar.rename(tags.length ? `${m.path}（${tags.join('・')}）` : m.path);
+      bar.progress(data.byteLength, data.byteLength);
+      bar.finish(true);
+    }
     reply({ ok: true, data }, [data]);
   } catch (err) {
     const message = String(err && err.message ? err.message : err);
