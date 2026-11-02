@@ -18,7 +18,10 @@ const TEMPLATE_JSON = `{
 const PROMPT_HEAD = `MadeInWeb（数秒のミニゲームを連続で遊ぶ Web ゲーム）のミニゲームを1本作ってください。
 仕様は下の「games/README.md」のとおりです。
 
-- 出力は main.js と game.json の2つだけ。それぞれ1つのコードブロックにまとめて、全文を書いてください
+- 完成したら main.js・game.json・assets/（素材があるときだけ）を1つの zip ファイルにまとめて、ダウンロードできるようにしてください
+  （zip の中身の例：main.js / game.json / assets/player.png）
+- zip を作れない場合は、main.js と game.json をそれぞれ1つのコードブロックにまとめて、全文を書いてください
+- 直すときも、毎回 zip をまとめて作り直してください
 - main.js は import を使わず、README の ctx API だけで作ってください（three.js は ctx.THREE）
 - 素材ファイル（画像・音）は、できるだけ使わずに図形・文字・3D で作ってください。使うときは assets/ 以下のファイル名にして、どんな素材が必要か最後に書いてください
 - 作りたいゲーム：（ここに書く）
@@ -93,6 +96,13 @@ async function unzip(buf) {
 /** zip の中身を、ゲームフォルダからのパスにそろえる（全部が同じフォルダに入っていたら、そのフォルダを外す） */
 function tidyZipPaths(entries) {
   entries = entries.filter(([n]) => !n.startsWith('__MACOSX/') && !n.split('/').some(part => part.startsWith('.')));
+  // main.js があるフォルダを、ゲームフォルダとみなす（一番浅いもの）。そのフォルダの外のファイルは使わない
+  const mains = entries.map(([n]) => n).filter(n => n === 'main.js' || n.endsWith('/main.js')).sort((a, b) => a.split('/').length - b.split('/').length);
+  if (mains.length) {
+    const root = mains[0].slice(0, -'main.js'.length);
+    return entries.filter(([n]) => n.startsWith(root)).map(([n, d]) => [n.slice(root.length), d]);
+  }
+  // main.js がない（素材だけの zip）：全部が同じフォルダに入っていたら、そのフォルダを外す
   for (;;) {
     const first = entries.length && entries[0][0].split('/')[0];
     if (!first || !entries.every(([n]) => n.includes('/') && n.split('/')[0] === first)) break;
@@ -116,7 +126,10 @@ async function addFiles(list, say) {
     const data = await file.arrayBuffer();
     if (/\.zip$/i.test(file.name)) {
       try {
-        for (const [path, d] of tidyZipPaths(await unzip(data))) {
+        const entries = tidyZipPaths(await unzip(data));
+        // ゲーム一式の zip なら、前に選んだ素材は外して入れ替える（古い素材が残らないように）
+        if (entries.some(([p]) => p === 'main.js')) files = new Map();
+        for (const [path, d] of entries) {
           if (/^(README|CREDIT|LICENSE)/i.test(path.split('/').pop()) || /\.(md|txt)$/i.test(path)) continue;
           put(path, d);
         }
@@ -131,6 +144,7 @@ async function addFiles(list, say) {
   for (const d of files.values()) total += d.byteLength;
   if (total > TOTAL_MAX) say(`素材の合計が大きすぎます（${(total / 1e6).toFixed(0)}MB）。${TOTAL_MAX / 1e6}MB までにしてください`);
   else if (skipped.length) say(`使えないファイルを外しました：\n${skipped.join('\n')}`);
+  else if (added.includes('main.js')) say(`読み込みました（${added.length}個のファイル）。「▶ あそぶ」で遊べます`, true);
   else if (added.length) say(`${added.length}個のファイルを読み込みました`, true);
   refreshAudio();
   showFiles();
@@ -213,7 +227,7 @@ export function makeScreen({ segment, speeds, diffs }) {
   const errors = log.filter(l => !l.startsWith('注意: '));
   $('mk-copylog').classList.toggle('hidden', !errors.length);
   $('mk-copylog').onclick = async () => {
-    const text = `MadeInWeb のミニゲームを動かしたら、次のエラーが出ました。直した main.js の全文をください。\n\n${errors.join('\n\n')}`;
+    const text = `MadeInWeb のミニゲームを動かしたら、次のエラーが出ました。直して、もう一度 zip（main.js・game.json・assets/）にまとめてください。zip を作れない場合は、直した main.js の全文をください。\n\n${errors.join('\n\n')}`;
     say((await copyText(text)) ? 'コピーしました。AI に貼り付けてください' : COPY_FAILED, true);
   };
 

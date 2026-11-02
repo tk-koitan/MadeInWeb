@@ -145,7 +145,8 @@
   #make textarea.short { height: 17cqh; }
   #make textarea#mk-out { height: 14cqh; font-size: 12px; }
   #make textarea:focus { outline: none; border-color: #e4572e; }
-  .mk-row { display: flex; gap: 2cqw; }
+  .mk-row { display: flex; gap: 2cqw; flex-wrap: wrap; }
+  .btn.zip { background: #e4572e; color: #fff; }
   #mk-file { display: none; }
   #mk-files { font: 1.7cqh/1.5 ui-monospace, Menlo, Consolas, monospace; color: #666; white-space: pre-wrap; overflow-wrap: anywhere; }
   #mk-files:empty::before { content: 'なし'; font-family: system-ui, sans-serif; color: #aaa; }
@@ -209,8 +210,8 @@
   <div id="make" class="hidden">
     <div class="sel-head"><button id="mk-back" class="btn small">◀ もどる</button><div class="sel-title">つくる</div></div>
     <div id="mk-body">
-      <div class="mk-help">AI に作ってもらった <b>main.js</b> と <b>game.json</b> を貼り付けて「あそぶ」を押すと、その場で遊べます（このブラウザの中だけで動きます）。</div>
-      <button id="mk-prompt" class="btn small">AI への説明をコピー</button>
+      <div class="mk-help">① 「AI への説明をコピー」して AI に貼り付け、作りたいゲームを書き足す<br>② AI が作った <b>zip</b> を読み込んで「あそぶ」<br>（zip がないときは、下に main.js と game.json を貼り付けても遊べます。ゲームはこのブラウザの中だけで動きます）</div>
+      <div class="mk-row"><button id="mk-prompt" class="btn small">① AI への説明をコピー</button><label class="btn small zip" for="mk-file">② zip を読み込む</label></div>
       <div id="mk-log-box" class="hidden">
         <div class="sel-label">前回のエラー・注意</div>
         <div id="mk-log"></div>
@@ -221,7 +222,7 @@
       <div class="sel-label">game.json</div>
       <textarea id="mk-json" class="short" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
       <div class="sel-label">素材ファイル（画像・音・VRM・glb。zip にまとめてもよい）</div>
-      <div class="mk-row"><label class="btn small" for="mk-file">ファイルを選ぶ</label><button id="mk-clear" class="btn small">すべて外す</button></div>
+      <div class="mk-row"><label class="btn small" for="mk-file">ファイルを追加</label><button id="mk-clear" class="btn small">すべて外す</button></div>
       <input id="mk-file" type="file" multiple>
       <div id="mk-files"></div>
       <div class="sel-label">スピード</div><div id="mk-speed" class="seg"></div>
