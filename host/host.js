@@ -113,17 +113,47 @@ async function readBody(r, bar) {
   for (const c of chunks) { out.set(c, o); o += c.byteLength; }
   return out.buffer;
 }
+async function fetchAssetData(gameId, path, bar) {
+  const r = await fetch(`games/${gameId}/${path}`);
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  const data = await readBody(r, bar);
+  if (data.byteLength > ASSET_MAX_BYTES) throw new Error(`${path} が大きすぎます（${(data.byteLength / 1e6).toFixed(1)}MB）`);
+  return data;
+}
+
+// ---- 先読み：いまのゲームを遊んでいる間に、次のゲームのファイルをダウンロードだけしておく。
+// 組み立て（main.js の実行や VRM の解析）は重くて遊んでいるゲームがカクつくので、結果の4拍になってから行う。
+// 先読みするのは game.json の "preload" と、前回そのゲームが fetchAsset で頼んだファイル
+const prefetched = new Map();         // 'ゲームID/パス' → Promise<ArrayBuffer>（使ったら消す）
+const requestedAssets = new Map();    // ゲームID → Set(パス)
+function prefetchGame(game) {
+  for (const key of [...prefetched.keys()]) if (!key.startsWith(`${game.id}/`)) prefetched.delete(key);
+  const paths = new Set([...game.preload, ...(requestedAssets.get(game.id) || [])]);
+  for (const path of paths) {
+    const key = `${game.id}/${path}`;
+    if (prefetched.has(key)) continue;
+    const p = fetchAssetData(game.id, path, null);
+    p.catch(() => { if (prefetched.get(key) === p) prefetched.delete(key); });   // 失敗したら、頼まれたときに取り直す
+    prefetched.set(key, p);
+  }
+  for (const url of [game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean)) loadSound(url).catch(() => {});
+}
+
 async function sendAsset(m) {
   let bar = null;
   const reply = (extra, transfer = []) => frame && frame.contentWindow && frame.contentWindow.postMessage({ type: 'asset', reqId: m.reqId, ...extra }, '*', transfer);
   try {
     if (m.runId !== runId || !currentGameId) throw new Error('いまのゲームからの依頼ではありません');
     if (!safeAssetPath(m.path)) throw new Error(`読み込めないファイル名です: ${m.path}`);
-    bar = DEBUG ? addItem(m.path) : null;
-    const r = await fetch(`games/${currentGameId}/${m.path}`);
-    if (!r.ok) throw new Error(`${m.path}: ${r.status}`);
-    const data = await readBody(r, bar);
-    if (data.byteLength > ASSET_MAX_BYTES) throw new Error(`${m.path} が大きすぎます（${(data.byteLength / 1e6).toFixed(1)}MB）`);
+    if (!requestedAssets.has(currentGameId)) requestedAssets.set(currentGameId, new Set());
+    const asked = requestedAssets.get(currentGameId);
+    if (asked.size < 8) asked.add(m.path);
+    const key = `${currentGameId}/${m.path}`;
+    const early = prefetched.get(key);
+    prefetched.delete(key);                      // 渡すとサンドボックスのものになるので、手元からは消す
+    bar = DEBUG ? addItem(early ? `${m.path}（先読み）` : m.path) : null;
+    let data = early ? await early.catch(() => null) : null;
+    if (!data) data = await fetchAssetData(currentGameId, m.path, bar);
     if (bar) { bar.progress(data.byteLength, data.byteLength); bar.finish(true); }
     reply({ ok: true, data }, [data]);
   } catch (err) {
@@ -177,6 +207,8 @@ async function loadCatalog() {
         beats: Number(g.beats) === 16 ? 16 : 8,
         timeoutResult: g.timeoutResult === 'win' ? 'win' : 'lose',
         camera: g.camera === 'perspective' ? 'perspective' : 'ortho',
+        // 先読みするファイル（game.json の "preload"）。ゲームフォルダ内の素材ファイルだけ、最大8個
+        preload: (Array.isArray(g.preload) ? g.preload : []).filter(safeAssetPath).slice(0, 8),
         // 音（game.json の "bgm" と "sounds"）。ゲームフォルダ内の音声ファイルだけを受け付ける
         bgmUrl: safeAudioPath(g.bgm) ? `games/${id}/${g.bgm}` : null,
         soundUrls: Object.fromEntries(
@@ -410,8 +442,10 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
   // サンドボックスは、本体が 'show' を送るまで前のゲームを表示し続けるので、結果の4拍の間から読み込める。
   // deadlineOf(新しい1拍の秒数) は、準備が終わる予定の時刻（読み込みバーの目安）
   let next = null;
+  let upcoming = null;    // 遊んでいる間に決めておく次のゲーム（ファイルを先読みする）
   const preload = deadlineOf => {
-    const game = nextGame(catalog);
+    const game = upcoming || nextGame(catalog);
+    upcoming = null;
     let speedUp = false;
     if (!fixedSpeed) {
       const s = Math.min(SPEED_MAX, 1 + SPEED_STEP * Math.floor(st.count / SPEED_EVERY));
@@ -479,6 +513,9 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
       if (clock() > prepEnd + 0.03) gameStart = clock();   // 読み込みが間に合わなかったら、そこから拍を取り直す
       play('whoosh');
       swipeToGame(dur);
+      // 次のゲームを決めて、遊んでいる間にファイルだけダウンロードしておく
+      upcoming = nextGame(catalog);
+      prefetchGame(upcoming);
       r = await gamePhase(gameStart, game, spb, cur.id);
       T = r.end;
     } else {

@@ -6,6 +6,9 @@
   "beats": 16,
   "timeoutResult": "lose",
   "camera": "perspective",
+  "preload": [
+    "assets/avatar.vrm"
+  ],
   "bgm": "assets/bgm.mp3",
   "sounds": {
     "cue": "assets/cue.mp3",
