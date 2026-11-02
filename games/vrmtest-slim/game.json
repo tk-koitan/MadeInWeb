@@ -1,0 +1,15 @@
+{
+  "sdk": "0.1",
+  "author": "koitan",
+  "title": "VRM重さテスト（縮小）",
+  "instruction": "タッチ！",
+  "beats": 8,
+  "timeoutResult": "lose",
+  "camera": "perspective",
+  "test": true,
+  "preload": ["assets/a.vrm", "assets/b.vrm"],
+  "sounds": {
+    "cue": "assets/cue.mp3",
+    "good": "assets/good.mp3"
+  }
+}

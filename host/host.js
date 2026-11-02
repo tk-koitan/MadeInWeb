@@ -209,6 +209,8 @@ async function loadCatalog() {
         camera: g.camera === 'perspective' ? 'perspective' : 'ortho',
         // 先読みするファイル（game.json の "preload"）。ゲームフォルダ内の素材ファイルだけ、最大8個
         preload: (Array.isArray(g.preload) ? g.preload : []).filter(safeAssetPath).slice(0, 8),
+        // テスト用（"test": true）は「えらんで遊ぶ」にだけ出す
+        test: g.test === true,
         // 音（game.json の "bgm" と "sounds"）。ゲームフォルダ内の音声ファイルだけを受け付ける
         bgmUrl: safeAudioPath(g.bgm) ? `games/${id}/${g.bgm}` : null,
         soundUrls: Object.fromEntries(
@@ -623,7 +625,7 @@ async function selectScreen(catalog) {
       card.className = 'card';
       const ins = document.createElement('div'); ins.className = 'ins'; ins.textContent = g.instruction;
       const name = document.createElement('div'); name.className = 'name'; name.textContent = g.title;
-      const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = `${g.beats}拍${g.author ? '・' + g.author : ''}`;
+      const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = `${g.beats}拍${g.author ? '・' + g.author : ''}${g.test ? '・テスト' : ''}`;
       card.append(ins, name, meta);
       card.onclick = () => resolve({ game: g, speed: prefs.speed, difficulty: prefs.difficulty });
       list.append(card);
@@ -669,8 +671,9 @@ if ('serviceWorker' in navigator) {
     curtain({ title: 'エラー', sub: String(err && err.message ? err.message : err), hint: '再読み込みしてください' });
     return;
   }
+  const playable = DEV_GAME ? catalog : catalog.filter(g => !g.test);   // 通常モードで遊ぶゲーム
   for (;;) {
-    const mode = await title(catalog);
+    const mode = await title(playable);
     if (mode === 'select') {
       // えらんで遊ぶ：練習 → メニューに戻る、を「もどる」まで繰り返す
       for (;;) {
@@ -679,7 +682,7 @@ if ('serviceWorker' in navigator) {
         await runSession([pick.game], { practice: true, speed: pick.speed, difficulty: pick.difficulty });
       }
     } else {
-      await runSession(catalog);
+      await runSession(playable);
     }
   }
 })();
