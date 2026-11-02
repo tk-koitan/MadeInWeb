@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!--
+  「つくる」画面用のサンドボックス。sandbox.html と同じだが、貼り付けたコードを動かすために script-src に blob: を足している。
+  （blob: はサンドボックスの中で作ったものだけ。通信の禁止 connect-src 'none' はそのまま）
+  ※ sandbox.html の CSP を変えたら、こちらも合わせる。
+  本体からは <iframe sandbox="allow-scripts"> で読み込まれる（allow-same-origin なし = 本体とは別オリジン扱い）。
+  CSP で外部への通信と外部スクリプトを禁止する。
+  ※ tools/serve.mjs はローカル開発時に https://tk-koitan.github.io を自分のアドレスに置き換えて配信する。
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src blob: https://tk-koitan.github.io http://localhost:* http://127.0.0.1:*; img-src https://tk-koitan.github.io http://localhost:* http://127.0.0.1:* data: blob:; style-src 'unsafe-inline'; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #fff;
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+</style>
+<script src="boot.js"></script>
+<script type="module" src="runtime.js"></script>
+</head>
+<body></body>
+</html>

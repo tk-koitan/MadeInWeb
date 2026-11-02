@@ -130,6 +130,32 @@
   .card .name { font-size: 2cqh; font-weight: 800; margin-top: .4cqh; }
   .card .meta { font-size: 1.6cqh; color: #999; margin-top: .3cqh; }
 
+  /* ---- つくる ---- */
+  #make { position: absolute; inset: 0; box-sizing: border-box; background: #fdf6e3; color: #333;
+    display: flex; flex-direction: column; gap: 1cqh; padding: 2cqh 4cqw 0;
+    -webkit-user-select: text; user-select: text; }
+  #mk-body { flex: 1; overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain;
+    display: flex; flex-direction: column; gap: .8cqh; padding-bottom: 2cqh; }
+  #mk-body > .btn, .mk-row .btn { align-self: flex-start; }
+  .mk-help { font-size: 1.9cqh; line-height: 1.5; color: #555; }
+  #make textarea { box-sizing: border-box; width: 100%; height: 34cqh; flex: none; resize: vertical;
+    font: 16px/1.35 ui-monospace, Menlo, Consolas, monospace; padding: 1cqh 2cqw;
+    border: .3cqh solid #e8d9b5; border-radius: 1.4cqh; background: #fff; color: #222;
+    touch-action: auto; -webkit-user-select: text; user-select: text; white-space: pre; overflow: auto; }
+  #make textarea.short { height: 17cqh; }
+  #make textarea#mk-out { height: 14cqh; font-size: 12px; }
+  #make textarea:focus { outline: none; border-color: #e4572e; }
+  .mk-row { display: flex; gap: 2cqw; }
+  #mk-file { display: none; }
+  #mk-files { font: 1.7cqh/1.5 ui-monospace, Menlo, Consolas, monospace; color: #666; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #mk-files:empty::before { content: 'なし'; font-family: system-ui, sans-serif; color: #aaa; }
+  #mk-log { font: 1.6cqh/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere;
+    max-height: 24cqh; overflow-y: auto; background: #fff0ec; color: #8a2a12; border-radius: 1.2cqh; padding: 1cqh 2cqw; margin-bottom: .6cqh; }
+  #mk-log-box { display: flex; flex-direction: column; gap: .6cqh; }
+  .mk-foot { display: flex; flex-direction: column; align-items: center; gap: 1cqh; padding: 1.2cqh 0 2.4cqh; border-top: .2cqh solid #eee2c6; }
+  #mk-msg { font-size: 1.9cqh; font-weight: 700; color: #c0392b; text-align: center; white-space: pre-wrap; min-height: 1em; }
+  #mk-msg.ok { color: #2e8b57; }
+
   #version { position: absolute; top: 1.2cqh; right: 2cqw; font-size: 1.8cqh; color: #999; z-index: 60;
     padding: 0.5cqh 1cqw; user-select: none; -webkit-user-select: none; font-variant-numeric: tabular-nums; }
   #error { position: absolute; left: 3%; right: 3%; top: 4%; max-height: 40%; overflow: auto; padding: 8px;
@@ -170,6 +196,7 @@
   <div id="title-menu" class="hidden">
     <button id="btn-start" class="btn primary">スタート</button>
     <button id="btn-select" class="btn">えらんで遊ぶ</button>
+    <button id="btn-make" class="btn small">つくる</button>
   </div>
   <!-- えらんで遊ぶ：ミニゲーム・スピード・難易度を選ぶ -->
   <div id="select" class="hidden">
@@ -177,6 +204,30 @@
     <div class="sel-label">スピード</div><div id="sel-speed" class="seg"></div>
     <div class="sel-label">難易度</div><div id="sel-diff" class="seg"></div>
     <div class="sel-label">ミニゲーム（タップでスタート）</div><div id="sel-list"></div>
+  </div>
+  <!-- つくる：AI に作ってもらったミニゲームを貼り付けて、その場で遊ぶ（host/make.js） -->
+  <div id="make" class="hidden">
+    <div class="sel-head"><button id="mk-back" class="btn small">◀ もどる</button><div class="sel-title">つくる</div></div>
+    <div id="mk-body">
+      <div class="mk-help">AI に作ってもらった <b>main.js</b> と <b>game.json</b> を貼り付けて「あそぶ」を押すと、その場で遊べます（このブラウザの中だけで動きます）。</div>
+      <button id="mk-prompt" class="btn small">AI への説明をコピー</button>
+      <div id="mk-log-box" class="hidden">
+        <div class="sel-label">前回のエラー・注意</div>
+        <div id="mk-log"></div>
+        <button id="mk-copylog" class="btn small">エラーを AI 用にコピー</button>
+      </div>
+      <div class="sel-label">main.js</div>
+      <textarea id="mk-code" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="export default {&#10;  init(ctx) { … },&#10;  update(dt, ctx) { … },&#10;};"></textarea>
+      <div class="sel-label">game.json</div>
+      <textarea id="mk-json" class="short" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      <div class="sel-label">素材ファイル（画像・音・VRM・glb。zip にまとめてもよい）</div>
+      <div class="mk-row"><label class="btn small" for="mk-file">ファイルを選ぶ</label><button id="mk-clear" class="btn small">すべて外す</button></div>
+      <input id="mk-file" type="file" multiple>
+      <div id="mk-files"></div>
+      <div class="sel-label">スピード</div><div id="mk-speed" class="seg"></div>
+      <div class="sel-label">難易度</div><div id="mk-diff" class="seg"></div>
+    </div>
+    <div class="mk-foot"><textarea id="mk-out" class="hidden" readonly></textarea><div id="mk-msg"></div><button id="mk-play" class="btn primary">▶ あそぶ</button></div>
   </div>
   <div id="version"></div>
   <div id="error" class="hidden"></div>

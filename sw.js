@@ -11,6 +11,8 @@ const CORE = [
   './host/sfx.js',
   './host/fx.js',
   './host/loadbar.js',
+  './host/gameinfo.js',
+  './host/make.js',
   './version.js',
   './manifest.webmanifest',
   './icons/icon-180.png',

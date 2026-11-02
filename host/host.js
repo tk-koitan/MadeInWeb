@@ -13,6 +13,8 @@
 import { flash, shake, crack, confetti, clearFx } from './fx.js';
 import { unlockAudio, play, clock, playMusic, loadSound, registerSounds, setGameSounds } from './sfx.js';
 import { beginLoad, addItem, addTiming, track } from './loadbar.js';
+import { safeAssetPath, parseGameInfo } from './gameinfo.js';
+import { makeScreen, makeLog } from './make.js';
 
 const params = new URLSearchParams(location.search);
 const DEV_GAME = params.get('game');
@@ -61,8 +63,9 @@ function waitUntil(t) {
 }
 
 // ---------------------------------------------------------------- サンドボックス iframe
-let frame = null, lastHeartbeat = 0, runId = 0, activeRunId = 0;   // runId は最後に読み込んだゲーム、activeRunId は遊んでいるゲーム
+let frame = null, framePage = 'sandbox.html', lastHeartbeat = 0, runId = 0, activeRunId = 0;   // runId は最後に読み込んだゲーム、activeRunId は遊んでいるゲーム
 const listeners = new Set();
+let makeMode = false;    // 「つくる」画面から遊んでいる（エラーを必ず出して、画面に戻ったときに一覧を見せる）
 
 window.addEventListener('message', e => {
   if (!frame || e.source !== frame.contentWindow) return;
@@ -73,7 +76,16 @@ window.addEventListener('message', e => {
   if (m.type === 'sound') { if (m.runId === activeRunId && typeof m.id === 'string') play(m.id); return; }
   if (m.type === 'fetchAsset') { sendAsset(m); return; }
   if (m.type === 'loadinfo') { if (DEBUG && m.runId === runId) addTiming(String(m.label).slice(0, 60), Number(m.ms) || 0); return; }
-  if (m.type === 'error') { console.error('[minigame]', m.message); showError(String(m.message)); }
+  if (m.type === 'error') {
+    // 貼り付けたコードは blob: の URL で動いているので、エラーの場所を main.js:行:列 に書き直す
+    // （本体側の行 sandbox/… は、ゲームを作る人には関係ないので外す）
+    const text = makeMode
+      ? String(m.message).replace(/blob:[^\s)]*?:(\d+):(\d+)/g, 'main.js:$1:$2').split('\n').filter(l => !/\/(sandbox|vendor)\//.test(l)).join('\n')
+      : String(m.message);
+    console.error('[minigame]', text);
+    showError(text);
+    if (makeMode) makeLog(text);
+  }
   for (const l of [...listeners]) l(m);
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) lastHeartbeat = performance.now(); });
@@ -90,8 +102,8 @@ const post = m => frame && frame.contentWindow && frame.contentWindow.postMessag
 // ---- サンドボックスからの素材ファイルの依頼（VRM など）
 // サンドボックスは通信できないので、本体が「いま遊んでいるゲームのフォルダ内のファイル」だけを取得して渡す
 const ASSET_MAX_BYTES = 30 * 1024 * 1024;
-const safeAssetPath = p => typeof p === 'string' && p.length < 200 && /^[\w\-./]+\.(vrm|vrma|glb|gltf|bin|png|jpg|jpeg|webp|json)$/i.test(p) && !p.includes('..') && !p.startsWith('/');
 let currentGameId = null;
+let currentCustom = null;   // 「つくる」画面のゲームなら、そのファイル一覧（Map パス → ArrayBuffer）
 /** レスポンスを読み切る。bar があれば受け取ったバイト数を伝える（上限を超えたら途中でやめる） */
 async function readBody(r, bar) {
   const length = Number(r.headers.get('content-length')) || 0;
@@ -130,6 +142,7 @@ const fromSavedCache = new WeakSet();
 const prefetched = new Map();         // 'ゲームID/パス' → Promise<ArrayBuffer>（使ったら消す）
 const requestedAssets = new Map();    // ゲームID → Set(パス)
 function prefetchGame(game) {
+  if (game.custom) { for (const url of [game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean)) loadSound(url).catch(() => {}); return; }
   for (const key of [...prefetched.keys()]) if (!key.startsWith(`${game.id}/`)) prefetched.delete(key);
   const paths = new Set([...game.preload, ...(requestedAssets.get(game.id) || [])]);
   for (const path of paths) {
@@ -156,6 +169,12 @@ async function sendAsset(m) {
     prefetched.delete(key);                      // 渡すとサンドボックスのものになるので、手元からは消す
     bar = DEBUG ? addItem(early ? `${m.path}（先読み）` : m.path) : null;
     let data = early ? await early.catch(() => null) : null;
+    if (currentCustom) {
+      // 「つくる」画面のゲーム：選んだファイルの中から渡す（渡すと手元から消えるので、写しを渡す）
+      const file = currentCustom.get(m.path.replace(/^\.\//, ''));
+      if (!file) throw new Error(`${m.path} がありません（素材ファイルとして選んでください）`);
+      data = file.slice(0);
+    }
     if (!data) data = await fetchAssetData(currentGameId, m.path, bar);
     if (bar) {
       const tags = [early && '先読み', fromSavedCache.has(data) && '保存済み'].filter(Boolean);
@@ -171,13 +190,15 @@ async function sendAsset(m) {
   }
 }
 
-async function createFrame() {
+/** サンドボックスを作り直す。page は 'sandbox.html'（ふつう）か 'make.html'（「つくる」画面。貼り付けたコードを動かせる） */
+async function createFrame(page = framePage) {
+  framePage = page;
   if (frame) frame.remove();
   frame = document.createElement('iframe');
   frame.className = 'game';
   frame.setAttribute('sandbox', 'allow-scripts');
   frame.setAttribute('title', 'minigame');
-  frame.src = `sandbox/sandbox.html?v=${encodeURIComponent(self.APP_VERSION)}`;
+  frame.src = `sandbox/${page}?v=${encodeURIComponent(self.APP_VERSION)}`;
   const booted = waitFor(m => m.type === 'boot' || m.type === 'fatal', 15000);
   $('shaker').prepend(frame);
   let m;
@@ -189,8 +210,8 @@ async function createFrame() {
   if (m.type === 'fatal') throw new Error(`ミニゲームの実行環境を起動できません。\n${m.message}`);
   lastHeartbeat = performance.now();
 }
-async function recoverFrame() {
-  try { await createFrame(); } catch (err) { console.error(err); }
+async function recoverFrame(page) {
+  try { await createFrame(page); } catch (err) { console.error(err); }
 }
 
 // ---------------------------------------------------------------- ミニゲーム一覧
@@ -199,7 +220,6 @@ async function fetchJSON(url) {
   if (!r.ok) throw new Error(`${url}: ${r.status}`);
   return r.json();
 }
-const safeAudioPath = p => typeof p === 'string' && /^[\w\-./]+\.(mp3|ogg|wav|m4a)$/i.test(p) && !p.includes('..') && !p.startsWith('/');
 
 async function loadCatalog() {
   const ids = await fetchJSON('games/index.json');
@@ -207,27 +227,7 @@ async function loadCatalog() {
   for (const id of ids) {
     try {
       const g = await fetchJSON(`games/${id}/game.json`);
-      list.push({
-        id,
-        title: String(g.title || id),
-        author: String(g.author || ''),
-        instruction: String(g.instruction || '？'),
-        beats: Number(g.beats) === 16 ? 16 : 8,
-        timeoutResult: g.timeoutResult === 'win' ? 'win' : 'lose',
-        camera: g.camera === 'perspective' ? 'perspective' : 'ortho',
-        // 先読みするファイル（game.json の "preload"）。ゲームフォルダ内の素材ファイルだけ、最大8個
-        preload: (Array.isArray(g.preload) ? g.preload : []).filter(safeAssetPath).slice(0, 8),
-        // テスト用（"test": true）は「えらんで遊ぶ」にだけ出す
-        test: g.test === true,
-        // 音（game.json の "bgm" と "sounds"）。ゲームフォルダ内の音声ファイルだけを受け付ける
-        bgmUrl: safeAudioPath(g.bgm) ? `games/${id}/${g.bgm}` : null,
-        soundUrls: Object.fromEntries(
-          Object.entries(g.sounds && typeof g.sounds === 'object' ? g.sounds : {})
-            .filter(([k, v]) => /^[a-z0-9_-]{1,32}$/i.test(k) && safeAudioPath(v))
-            .slice(0, 16)
-            .map(([k, v]) => [k, `games/${id}/${v}`]),
-        ),
-      });
+      list.push(parseGameInfo(id, g, path => `games/${id}/${path}`));
     } catch (err) {
       console.error(`games/${id}/game.json を読み込めません`, err);
     }
@@ -322,7 +322,7 @@ function showCountdown(n, spb) {
 
 let errorTimer = 0;
 function showError(msg) {
-  if (!DEBUG) return;
+  if (!DEBUG && !makeMode) return;
   const el = $('error');
   el.textContent = msg;
   el.classList.remove('hidden');
@@ -352,11 +352,14 @@ async function beatPhase(T, beats, spb, { sounds, onBeat } = {}) {
 function loadGame(game, st, deadline) {
   const id = ++runId;
   currentGameId = game.id;
+  currentCustom = game.custom ? game.custom.files : null;
   const v = encodeURIComponent(self.APP_VERSION);
   lastHeartbeat = performance.now();
   post({
     type: 'load', runId: id,
-    url: new URL(`games/${game.id}/main.js?v=${v}`, location.href).href,
+    // 「つくる」画面のゲームは、コードと画像をそのまま渡す（サンドボックスの中で blob: にして読む）
+    ...(game.custom ? { code: game.custom.code, files: game.custom.images }
+      : { url: new URL(`games/${game.id}/main.js?v=${v}`, location.href).href }),
     base: new URL(`games/${game.id}/`, location.href).href,
     speed: st.speed, difficulty: st.difficulty, beats: game.beats,
     timeoutResult: game.timeoutResult, camera: game.camera, seed: (Math.random() * 0x7fffffff) | 0,
@@ -587,6 +590,7 @@ async function title(catalog) {
   const mode = await new Promise(resolve => {
     $('btn-start').onclick = () => resolve('normal');
     $('btn-select').onclick = () => resolve('select');
+    $('btn-make').onclick = () => resolve('make');
   });
   $('title-menu').classList.add('hidden');
   unlockAudio();
@@ -689,6 +693,24 @@ if ('serviceWorker' in navigator) {
         if (!pick) break;
         await runSession([pick.game], { practice: true, speed: pick.speed, difficulty: pick.difficulty });
       }
+    } else if (mode === 'make') {
+      // つくる：貼り付けたゲームを練習と同じように遊ぶ → 画面に戻る、を「もどる」まで繰り返す
+      for (;;) {
+        $('error').classList.add('hidden');
+        const pick = await makeScreen({ segment, speeds: SPEED_CHOICES.map(v => [v, String(Math.round(BASE_BPM * v))]), diffs: DIFF_LABELS.map((l, i) => [i + 1, l]) });
+        if (!pick) break;
+        unlockAudio();
+        makeMode = true;
+        try {
+          if (framePage !== 'make.html') await createFrame('make.html');
+          await runSession([pick.game], { practice: true, speed: pick.speed, difficulty: pick.difficulty });
+        } catch (err) {
+          makeLog(String(err && err.message ? err.message : err));
+        } finally {
+          makeMode = false;
+        }
+      }
+      if (framePage !== 'sandbox.html') await recoverFrame('sandbox.html');
     } else {
       await runSession(playable);
     }

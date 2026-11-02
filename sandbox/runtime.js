@@ -393,7 +393,8 @@ function makeCtx(s, m) {
     random,
     randInt: (a, b) => Math.floor(random(a, b + 1)),
     pick: arr => arr[Math.floor(rand() * arr.length)],
-    asset: path => new URL(path, m.base).href,
+    // 「つくる」画面から渡されたゲームは、ファイルを blob: の URL にして使う（サーバーに置かれていない）
+    asset: path => (s.fileUrls ? s.fileUrls.get(String(path).replace(/^\.\//, '')) || 'blob:missing' : new URL(path, m.base).href),
 
     background(color) { s.scene.background = new THREE.Color(color); },
     circle({ r = 50, color = '#ffffff', ...p } = {}) {
@@ -689,6 +690,7 @@ function finish(s, win, byTimeup = false) {
   send({ type: 'result', runId: s.runId, win });
 }
 
+const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 function disposeSession(s) {
   if (!s || s.disposed) return;
   s.disposed = true;
@@ -698,6 +700,7 @@ function disposeSession(s) {
   if (vrmUtils) for (const vrm of s.vrms) vrmUtils.deepDispose(vrm.scene);
   for (const sc of [s.scene, s.scene2D]) for (const c of [...sc.children]) { sc.remove(c); disposeObject(c); }
   for (const b of bitmaps) b.close();
+  if (s.fileUrls) for (const url of s.fileUrls.values()) URL.revokeObjectURL(url);
 }
 function unload() {
   disposeSession(session);
@@ -743,14 +746,29 @@ async function load(m) {
     result: null, started: false, time: 0, speed: Number(m.speed) || 1,
     timeoutResult: m.timeoutResult === 'win' ? 'win' : 'lose', game: null, ctx: null,
   };
+  if (m.files && typeof m.files === 'object') {
+    s.fileUrls = new Map();
+    for (const [path, data] of Object.entries(m.files)) {
+      if (!(data instanceof ArrayBuffer)) continue;
+      const ext = path.split('.').pop().toLowerCase();
+      s.fileUrls.set(path, URL.createObjectURL(new Blob([data], { type: IMAGE_TYPES[ext] || 'application/octet-stream' })));
+    }
+  }
   s.ctx = makeCtx(s, m);
   nextSession = s;
   if (!session) show(s.runId);      // 画面に何も出ていなければ、すぐ出してよい
   try {
-    const url = new URL(m.url);
-    url.searchParams.set('run', String(++runCounter)); // 毎回まっさらな状態で読み込む
     let t = performance.now();
-    const mod = await import(url.href);
+    let mod;
+    if (typeof m.code === 'string') {
+      // 「つくる」画面で貼り付けたコード（sandbox/make.html だけが blob: のスクリプトを許可している）
+      const url = URL.createObjectURL(new Blob([m.code], { type: 'text/javascript' }));
+      try { mod = await import(url); } finally { URL.revokeObjectURL(url); }
+    } else {
+      const url = new URL(m.url);
+      url.searchParams.set('run', String(++runCounter)); // 毎回まっさらな状態で読み込む
+      mod = await import(url.href);
+    }
     t = timing(s, 'main.js 読み込み', t);
     if (s.disposed) return;
     s.game = mod.default;

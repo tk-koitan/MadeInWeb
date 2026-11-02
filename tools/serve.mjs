@@ -35,7 +35,7 @@ http.createServer(async (req, res) => {
     if ((await stat(file)).isDirectory()) file = join(file, 'index.html');
     let body = await readFile(file);
     // 本番用 CSP の配信元を、いま開いているアドレスに置き換える
-    if (file.endsWith(join('sandbox', 'sandbox.html'))) {
+    if (file.endsWith(join('sandbox', 'sandbox.html')) || file.endsWith(join('sandbox', 'make.html'))) {
       body = Buffer.from(body.toString('utf8').replaceAll('https://tk-koitan.github.io', `http://${req.headers.host}`));
     }
     res.writeHead(200, {
