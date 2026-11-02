@@ -9,6 +9,7 @@ import { ShaderPass } from '../vendor/three-addons/postprocessing/ShaderPass.js'
 import { UnrealBloomPass } from '../vendor/three-addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/three-addons/postprocessing/OutputPass.js';
 import { loadPlanck, createPhysics, physicsStep, push as pushNode } from './physics.js';
+import { loadCannon, createPhysics3d, physics3dStep } from './physics3d.js';
 
 const W = 540, H = 960;
 // ゲーム内時間は 120bpm 基準（1拍 = 0.5秒）。テンポが上がると dt に倍率が掛かる。
@@ -400,6 +401,8 @@ function makeCtx(s, m) {
     // 「つくる」画面から渡されたゲームは、ファイルを blob: の URL にして使う（サーバーに置かれていない）
     /** 2D の物理エンジン（games/README.md の「物理」） */
     get physics() { return s.physicsApi || (s.physicsApi = createPhysics(s)); },
+    /** 3D の物理エンジン（games/README.md の「3D の物理」） */
+    get physics3d() { return s.physics3dApi || (s.physics3dApi = createPhysics3d(s)); },
     asset: path => (s.fileUrls ? s.fileUrls.get(String(path).replace(/^\.\//, '')) || 'blob:missing' : new URL(path, m.base).href),
 
     background(color) { s.scene.background = new THREE.Color(color); },
@@ -779,7 +782,8 @@ async function load(m) {
     t = timing(s, 'main.js 読み込み', t);
     if (s.disposed) return;
     s.game = mod.default;
-    await loadPlanck().catch(() => {});   // ctx.physics をすぐ使えるように（起動時から読み込んでいるので、ふつうは待たない）
+    // ctx.physics / physics3d をすぐ使えるように（起動時から読み込んでいるので、ふつうは待たない）
+    await Promise.all([loadPlanck(), loadCannon()]).catch(() => {});
     if (!s.game || typeof s.game !== 'object') throw new Error('main.js は export default { init, update } の形にしてください');
     if (s.game.init) await s.game.init(s.ctx);
     // 画像の読み込みを待つ（最大5秒）
@@ -868,6 +872,7 @@ function step(s, dt) {
     if (n.vr) n.rotation += n.vr * dt;
   }
   physicsStep(s, dt, safe);
+  physics3dStep(s, dt, safe);
   if (s.game && s.game.update) safe(() => s.game.update(dt, s.ctx));
 }
 
@@ -908,3 +913,4 @@ resize();
 requestAnimationFrame(frame);
 send({ type: 'boot' });
 loadPlanck().catch(err => console.warn('物理エンジンを読み込めません', err));
+loadCannon().catch(err => console.warn('3D の物理エンジンを読み込めません', err));

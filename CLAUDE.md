@@ -12,7 +12,7 @@ GitHub Pages: https://tk-koitan.github.io/MadeInWeb/ （`main` ブランチの�
 | `host/library.js` | マイゲーム（つくる画面で読み込んだゲームを IndexedDB に保存・一覧・ランダムで遊ぶ） |
 | `host/make.js`, `sandbox/make.html` | 「つくる」画面。貼り付けたコードを遊ぶ。make.html は sandbox.html と同じ CSP に `script-src blob:` を足したもの（通信禁止はそのまま） |
 | `games/<id>/` | ミニゲーム。作り方は **`games/README.md`** |
-| `vendor/` | three.js r170（`three.module.min.js`）、three-vrm、planck.js 1.5.1（2D 物理。`sandbox/physics.js` が `ctx.physics` にする） |
+| `vendor/` | three.js r170（`three.module.min.js`）、three-vrm、planck.js 1.5.1（2D 物理。`sandbox/physics.js` → `ctx.physics`）、cannon-es 0.20.0（3D 物理。`sandbox/physics3d.js` → `ctx.physics3d`） |
 | `version.js` | バージョン番号。配信するたびに上げる（PWA キャッシュも更新される） |
 | `sw.js`, `manifest.webmanifest`, `icons/` | PWA |
 | `tools/serve.mjs` | 開発サーバー（`npm run dev`） |

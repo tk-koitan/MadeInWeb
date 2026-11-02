@@ -1,0 +1,14 @@
+{
+  "sdk": "0.1",
+  "title": "ボウリング（3D物理）",
+  "author": "koitan",
+  "instruction": "たおせ！",
+  "beats": 16,
+  "timeoutResult": "lose",
+  "camera": "perspective",
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "roll": "assets/roll.mp3",
+    "crash": "assets/crash.mp3"
+  }
+}

@@ -151,3 +151,11 @@ At the end, print the list of files you created with their pixel sizes.
 | games/robojump/assets/jump.mp3 | 1 | Cartoon spring boing jump sound effect, single bouncy boing（seed 2） |
 | games/robojump/assets/land.mp3 | 1 | Metallic clank landing sound effect, robot feet landing on steel platform, single hit（seed 1） |
 | games/robojump/assets/fall.mp3 | 1 | Cartoon falling whistle sound effect, descending slide whistle（seed 1） |
+
+### ボウリングの音
+
+| ファイル | 秒 | プロンプト |
+| --- | --- | --- |
+| games/bowling/assets/bgm.mp3 | 10 | Groovy retro bowling alley funk at a steady 120 BPM, four on the floor kick drum, punchy slap bass, wah guitar, bright organ stabs, cheerful, continuous loop with no fade out, starts immediately on the downbeat（seed 1。推定 119 BPM、8.5 秒まで鳴る） |
+| games/bowling/assets/roll.mp3 | 2 | Bowling ball rolling down a wooden lane sound effect, low rumbling roll, no music（seed 1） |
+| games/bowling/assets/crash.mp3 | 2 | Bowling pins crash sound effect, ball smashing into wooden pins, loud clatter, no music（seed 1） |

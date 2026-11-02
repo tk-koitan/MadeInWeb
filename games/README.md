@@ -149,6 +149,35 @@ ball.draggable = true;                                 // 指でつかんで投�
 - ゲーム内の時間で動くので、スピードアップすると速くなり、同じ操作なら毎回同じ動きになります
 - 物体の数は数十個までを目安にしてください
 
+### 3D の物理（ctx.physics3d）
+
+3D の層（`ctx.scene`）の物体に物理を付けます（cannon-es）。単位はメートル、重力は下向き 9.8m/秒² です。サンプルは `games/bowling`。
+
+```js
+const { THREE } = ctx;
+ctx.physics3d.ground();                                 // 見えない地面（y = 0）
+const ball = new THREE.Mesh(new THREE.SphereGeometry(0.2), new THREE.MeshStandardMaterial({ color: 0x2541b2 }));
+ball.position.set(0, 1, 0);
+ctx.scene.add(ball);                                    // 物体は ctx.scene の直下に置く
+ctx.physics3d.add(ball, { bounce: 0.5 });               // 形は見た目から自動で決まる
+ctx.physics3d.add(pin, { shape: 'cylinder', mass: 1.5 });
+ctx.physics3d.onHit(ball, pin, ({ speed }) => { … });   // speed はぶつかった速さ（m/秒）
+ctx.physics3d.push(ball, 0, 0, -6);                     // 勢いをつける（m/秒）
+```
+
+| API | 内容 |
+| --- | --- |
+| `ctx.physics3d.add(obj, opts)` | 物理を付ける。`shape`：`'auto'`（既定。球・円柱のジオメトリはそのまま、それ以外は見た目を包む箱）/ `'box'` / `'sphere'` / `'cylinder'`。`opts`：`static`, `bounce`（既定 0.3）, `friction`（既定 0.5）, `mass`（kg。既定は大きさから）, `fixedRotation`, `sensor`, `damping`（空気抵抗、既定 0.01） |
+| `ctx.physics3d.onHit(a, b, fn)` / `onHit(a, fn)` | ぶつかった瞬間に `fn({ a, b, speed })` |
+| `ctx.physics3d.ground({ y, bounce, friction })` | 見えない地面（水平で、下は全部うまっている）。戻り値を `onHit` に使える |
+| `ctx.physics3d.push(obj, x, y, z)` / `spin(obj, x, y, z)` | 速度 / 回転の勢いを足す |
+| `ctx.physics3d.velocity(obj)` / `stop(obj)` | いまの速度（`THREE.Vector3`）/ 止める |
+| `ctx.physics3d.gravity(x, y, z)` / `remove(obj)` | 重力の変更 / 物理を外す（シーンから外した物体は自動で外れる） |
+
+- 物理を付けた物体も、`position` や `rotation` を書き換えると瞬間移動します
+- 重心は形の中心です。速い物体（数 m/秒以上）が薄い物をすり抜けるときは、物体を大きくするか遅くしてください
+- 3D の物理はドラッグに対応していません。スワイプ（`ctx.input.on('swipe')`）で `push` するなどしてください
+
 ### 入力（画面全体）
 
 ```js
