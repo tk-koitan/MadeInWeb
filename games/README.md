@@ -105,7 +105,8 @@ export default {
 | `onTap(fn)` | 指が触れた瞬間に呼ばれる。重なっていたら一番手前だけ |
 | `draggable = true / 'x' / 'y'` | ドラッグで動かせる（`'x'` は横だけ） |
 | `onDrag(fn)`, `onDrop(fn)` | ドラッグ中 / 離したとき |
-| `remove()` | 消す。`removed` が `true` になる |
+| `push(dx, dy)` | 勢いをつける（速度 px/秒 を足す）。物理を付けた物体にも使える |
+| `remove()` | 消す。`removed` が `true` になる（物理も外れる） |
 | `contains(x, y)` | 点が中に入っているか |
 
 ### 動き・判定
@@ -117,6 +118,36 @@ export default {
 | `ctx.onBeat(fn)` | 拍の頭ごとに `fn(拍番号)` を呼ぶ（0拍目から） |
 | `ctx.overlap(a, b)` | 2つの Node が重なっているか（円・四角） |
 | `ctx.distance(a, b)` | 中心間の距離 |
+
+### 物理（ctx.physics）
+
+物体に `ctx.physics.add` を付けると、重力で落ち、ぶつかり、積み重なり、転がるようになります（2D の物理エンジン Box2D）。座標は画面と同じ px のままです。
+
+```js
+ctx.physics.walls();                                   // 画面の左・右・下に見えない壁（top: true で上も）
+const floor = ctx.rect({ x: 270, y: 900, w: 400, h: 40 });
+ctx.physics.add(floor, { static: true });              // 動かない床
+const ball = ctx.circle({ x: 270, y: 200, r: 30 });
+ctx.physics.add(ball, { bounce: 0.6 });                // 落ちてくるボール
+ctx.physics.onHit(ball, floor, ({ speed }) => {        // ぶつかったとき。speed はぶつかった速さ（px/秒）
+  if (speed > 300) ctx.sound.play('hit');
+});
+ball.push(400, -900);                                  // 勢いをつける
+ball.draggable = true;                                 // 指でつかんで投げられる（離した瞬間の指の速さで飛ぶ）
+```
+
+| API | 内容 |
+| --- | --- |
+| `ctx.physics.add(node, opts)` | 物理を付ける。形は物体の当たり判定と同じ（円 / 四角。`sprite` は `r` を付けると円）。`opts`：`static`（動かない）, `bounce`（跳ね返り 0〜1、既定 0.2）, `friction`（摩擦 0〜1、既定 0.4）, `density`（重さ、既定 1）, `fixedRotation`（回転しない）, `sensor`（ぶつからず、重なったことだけ `onHit` で知る。ゴールの判定などに）, `bullet`（とても速い物体のすり抜け防止） |
+| `ctx.physics.onHit(a, b, fn)` | `a` と `b` がぶつかった瞬間に `fn({ a, b, speed })`。`onHit(a, fn)` なら、`a` が何かにぶつかったとき |
+| `ctx.physics.walls(opts)` | 画面の端に見えない壁。`{ top, bottom, left, right, bounce, friction }`。戻り値を `onHit(ball, walls, fn)` に使える |
+| `ctx.physics.gravity(x, y)` | 重力（px/秒²）。既定は `(0, 1800)`。`(0, 0)` で無重力 |
+| `ctx.physics.remove(node)` | 物理を外す（物体は残る） |
+
+- 物理を付けた物体も、`x` `y` `rotation` `vx` `vy` `vr` を書き換えられます（瞬間移動・速度の変更になります）
+- 大きさは `add` したときのものです。あとで `scale` を変えても当たり判定は変わりません
+- ゲーム内の時間で動くので、スピードアップすると速くなり、同じ操作なら毎回同じ動きになります
+- 物体の数は数十個までを目安にしてください
 
 ### 入力（画面全体）
 

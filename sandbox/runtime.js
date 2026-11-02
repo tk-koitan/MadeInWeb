@@ -8,6 +8,7 @@ import { RenderPass } from '../vendor/three-addons/postprocessing/RenderPass.js'
 import { ShaderPass } from '../vendor/three-addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from '../vendor/three-addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/three-addons/postprocessing/OutputPass.js';
+import { loadPlanck, createPhysics, physicsStep, push as pushNode } from './physics.js';
 
 const W = 540, H = 960;
 // ゲーム内時間は 120bpm 基準（1拍 = 0.5秒）。テンポが上がると dt に倍率が掛かる。
@@ -233,6 +234,9 @@ class Node {
   /** ドラッグを離したときに呼ばれる */
   onDrop(fn) { this._drop.push(fn); return this; }
 
+  /** 勢いをつける（速度 px/秒 を足す）。物理が付いた物体でも使える */
+  push(dx, dy) { pushNode(this, dx, dy); return this; }
+
   remove() {
     if (this.removed) return;
     this.removed = true;
@@ -394,6 +398,8 @@ function makeCtx(s, m) {
     randInt: (a, b) => Math.floor(random(a, b + 1)),
     pick: arr => arr[Math.floor(rand() * arr.length)],
     // 「つくる」画面から渡されたゲームは、ファイルを blob: の URL にして使う（サーバーに置かれていない）
+    /** 2D の物理エンジン（games/README.md の「物理」） */
+    get physics() { return s.physicsApi || (s.physicsApi = createPhysics(s)); },
     asset: path => (s.fileUrls ? s.fileUrls.get(String(path).replace(/^\.\//, '')) || 'blob:missing' : new URL(path, m.base).href),
 
     background(color) { s.scene.background = new THREE.Color(color); },
@@ -625,7 +631,7 @@ canvas.addEventListener('pointerdown', e => {
   }
   if (top) {
     for (const fn of top._tap) safe(() => fn({ x: p.x, y: p.y }));
-    if (top.draggable && !top.removed) { rec.drag = top; rec.ox = top.x - p.x; rec.oy = top.y - p.y; }
+    if (top.draggable && !top.removed) { rec.drag = top; rec.ox = top.x - p.x; rec.oy = top.y - p.y; top._dragging = true; }
   }
   emit(s, 'down', { x: p.x, y: p.y, id: e.pointerId });
 });
@@ -655,6 +661,7 @@ function pointerEnd(e, cancelled) {
   const s = session;
   if (!s || !s.started) return;
   const p = { x: rec.x, y: rec.y };
+  if (rec.drag) rec.drag._dragging = false;
   if (rec.drag && !rec.drag.removed) for (const fn of rec.drag._drop) safe(() => fn(p));
   emit(s, 'up', { ...p, id: e.pointerId });
   if (cancelled) return;
@@ -772,6 +779,7 @@ async function load(m) {
     t = timing(s, 'main.js 読み込み', t);
     if (s.disposed) return;
     s.game = mod.default;
+    await loadPlanck().catch(() => {});   // ctx.physics をすぐ使えるように（起動時から読み込んでいるので、ふつうは待たない）
     if (!s.game || typeof s.game !== 'object') throw new Error('main.js は export default { init, update } の形にしてください');
     if (s.game.init) await s.game.init(s.ctx);
     // 画像の読み込みを待つ（最大5秒）
@@ -854,10 +862,12 @@ function step(s, dt) {
   for (const mixer of s.mixers) mixer.update(dt);
   for (const vrm of s.vrms) vrm.update(dt);
   for (const n of s.nodes) {
+    if (n._body) continue;            // 物理が付いた物体は、物理エンジンが動かす
     if (n.vx) n.x += n.vx * dt;
     if (n.vy) n.y += n.vy * dt;
     if (n.vr) n.rotation += n.vr * dt;
   }
+  physicsStep(s, dt, safe);
   if (s.game && s.game.update) safe(() => s.game.update(dt, s.ctx));
 }
 
@@ -897,3 +907,4 @@ function frame(now) {
 resize();
 requestAnimationFrame(frame);
 send({ type: 'boot' });
+loadPlanck().catch(err => console.warn('物理エンジンを読み込めません', err));

@@ -1,0 +1,8 @@
+{
+  "sdk": "0.1",
+  "title": "つみあげ（物理）",
+  "author": "koitan",
+  "instruction": "つめ！",
+  "beats": 16,
+  "timeoutResult": "lose"
+}
