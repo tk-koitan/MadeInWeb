@@ -14,7 +14,8 @@ import { flash, shake, crack, confetti, clearFx } from './fx.js';
 import { unlockAudio, play, clock, playMusic, loadSound, registerSounds, setGameSounds } from './sfx.js';
 import { beginLoad, addItem, addTiming, track } from './loadbar.js';
 import { safeAssetPath, parseGameInfo } from './gameinfo.js';
-import { makeScreen, makeLog } from './make.js';
+import { makeScreen, makeLog, openInEditor } from './make.js';
+import { libraryScreen, hydrate } from './library.js';
 
 const params = new URLSearchParams(location.search);
 const DEV_GAME = params.get('game');
@@ -142,7 +143,10 @@ const fromSavedCache = new WeakSet();
 const prefetched = new Map();         // 'ゲームID/パス' → Promise<ArrayBuffer>（使ったら消す）
 const requestedAssets = new Map();    // ゲームID → Set(パス)
 function prefetchGame(game) {
-  if (game.custom) { for (const url of [game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean)) loadSound(url).catch(() => {}); return; }
+  // 「つくる」・マイゲーム：中身（保存場所から読む）と音だけ用意する
+  const sounds = () => { for (const url of [game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean)) loadSound(url).catch(() => {}); };
+  if (game.saved) { hydrate(game).then(sounds).catch(() => {}); return; }
+  if (game.custom) { sounds(); return; }
   for (const key of [...prefetched.keys()]) if (!key.startsWith(`${game.id}/`)) prefetched.delete(key);
   const paths = new Set([...game.preload, ...(requestedAssets.get(game.id) || [])]);
   for (const path of paths) {
@@ -352,26 +356,39 @@ async function beatPhase(T, beats, spb, { sounds, onBeat } = {}) {
 function loadGame(game, st, deadline) {
   const id = ++runId;
   currentGameId = game.id;
-  currentCustom = game.custom ? game.custom.files : null;
+  currentCustom = null;
   const v = encodeURIComponent(self.APP_VERSION);
   lastHeartbeat = performance.now();
-  post({
-    type: 'load', runId: id,
-    // 「つくる」画面のゲームは、コードと画像をそのまま渡す（サンドボックスの中で blob: にして読む）
-    ...(game.custom ? { code: game.custom.code, files: game.custom.images }
-      : { url: new URL(`games/${game.id}/main.js?v=${v}`, location.href).href }),
-    base: new URL(`games/${game.id}/`, location.href).href,
-    speed: st.speed, difficulty: st.difficulty, beats: game.beats,
-    timeoutResult: game.timeoutResult, camera: game.camera, seed: (Math.random() * 0x7fffffff) | 0,
+  // マイゲームは、保存場所からコードと素材を読んでから渡す
+  const prep = game.saved ? hydrate(game) : Promise.resolve();
+  const ready = prep.then(() => {
+    if (id !== runId) return false;               // 読んでいる間に、別のゲームの読み込みが始まった
+    currentCustom = game.custom ? game.custom.files : null;
+    post({
+      type: 'load', runId: id,
+      // 「つくる」画面・マイゲームは、コードと画像をそのまま渡す（サンドボックスの中で blob: にして読む）
+      ...(game.custom ? { code: game.custom.code, files: game.custom.images }
+        : { url: new URL(`games/${game.id}/main.js?v=${v}`, location.href).href }),
+      base: new URL(`games/${game.id}/`, location.href).href,
+      speed: st.speed, difficulty: st.difficulty, beats: game.beats,
+      timeoutResult: game.timeoutResult, camera: game.camera, seed: (Math.random() * 0x7fffffff) | 0,
+    });
+    return waitFor(m => m.runId === id && (m.type === 'ready' || m.type === 'error'), 20000)
+      .then(m => m.type === 'ready', () => false);
+  }, err => {
+    const text = `「${game.title}」を保存場所から読めません：${err && err.message ? err.message : err}`;
+    showError(text);
+    if (makeMode) makeLog(text);
+    return false;
   });
-  const ready = waitFor(m => m.runId === id && (m.type === 'ready' || m.type === 'error'), 20000)
-    .then(m => m.type === 'ready', () => false);
-  const audioUrls = [game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean);
   if (DEBUG) {
     beginLoad(game.title, deadline);
     track('main.js + init()', ready);
   }
-  const audio = Promise.all(audioUrls.map(u => (DEBUG ? track(u.split('/').pop(), loadSound(u)) : loadSound(u))));
+  const audio = prep.then(() => {
+    const audioUrls = [game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean);
+    return Promise.all(audioUrls.map(u => (DEBUG ? track(u.split('/').pop(), loadSound(u)) : loadSound(u))));
+  }).catch(() => {});
   return Promise.all([ready, audio]).then(([ok]) => ok);
 }
 
@@ -591,6 +608,7 @@ async function title(catalog) {
     $('btn-start').onclick = () => resolve('normal');
     $('btn-select').onclick = () => resolve('select');
     $('btn-make').onclick = () => resolve('make');
+    $('btn-library').onclick = () => resolve('library');
   });
   $('title-menu').classList.add('hidden');
   unlockAudio();
@@ -650,6 +668,48 @@ async function selectScreen(catalog) {
   return result;
 }
 
+// ---- つくる・マイゲーム
+// 貼り付けたゲームや保存したゲームは、blob: のスクリプトを動かせるサンドボックス（make.html）で遊ぶ
+async function playCustom(games, opts) {
+  unlockAudio();
+  makeMode = true;
+  try {
+    if (framePage !== 'make.html') await createFrame('make.html');
+    await runSession(games, opts);
+  } catch (err) {
+    makeLog(String(err && err.message ? err.message : err));
+  } finally {
+    makeMode = false;
+  }
+}
+/** つくる画面とマイゲーム画面を行き来する。どちらかで「もどる」とタイトルへ（編集から来たつくる画面はマイゲームへ） */
+async function myGames(first) {
+  const speeds = SPEED_CHOICES.map(v => [v, String(Math.round(BASE_BPM * v))]);
+  const diffs = DIFF_LABELS.map((l, i) => [i + 1, l]);
+  let screen = first, cameFromLibrary = false;
+  for (;;) {
+    $('error').classList.add('hidden');
+    if (screen === 'make') {
+      const r = await makeScreen({ segment, speeds, diffs });
+      if (!r) { if (cameFromLibrary) { screen = 'library'; cameFromLibrary = false; continue; } break; }
+      if (r.goto) { screen = r.goto; cameFromLibrary = false; continue; }
+      await playCustom([r.game], { practice: true, speed: r.speed, difficulty: r.difficulty });
+    } else {
+      const prefs = loadPrefs();
+      const r = await libraryScreen({ segment, speeds, diffs, prefs, savePrefs });
+      if (!r) break;
+      if (r.edit) {
+        try { await openInEditor(r.edit); } catch (err) { showError(String(err && err.message ? err.message : err)); continue; }
+        screen = 'make'; cameFromLibrary = true;
+        continue;
+      }
+      if (r.random) await playCustom(r.random, {});
+      else await playCustom([r.play], { practice: true, speed: r.speed, difficulty: r.difficulty });
+    }
+  }
+  if (framePage !== 'sandbox.html') await recoverFrame('sandbox.html');
+}
+
 // ---------------------------------------------------------------- 起動
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(err => console.warn('SW registration failed', err));
@@ -693,24 +753,8 @@ if ('serviceWorker' in navigator) {
         if (!pick) break;
         await runSession([pick.game], { practice: true, speed: pick.speed, difficulty: pick.difficulty });
       }
-    } else if (mode === 'make') {
-      // つくる：貼り付けたゲームを練習と同じように遊ぶ → 画面に戻る、を「もどる」まで繰り返す
-      for (;;) {
-        $('error').classList.add('hidden');
-        const pick = await makeScreen({ segment, speeds: SPEED_CHOICES.map(v => [v, String(Math.round(BASE_BPM * v))]), diffs: DIFF_LABELS.map((l, i) => [i + 1, l]) });
-        if (!pick) break;
-        unlockAudio();
-        makeMode = true;
-        try {
-          if (framePage !== 'make.html') await createFrame('make.html');
-          await runSession([pick.game], { practice: true, speed: pick.speed, difficulty: pick.difficulty });
-        } catch (err) {
-          makeLog(String(err && err.message ? err.message : err));
-        } finally {
-          makeMode = false;
-        }
-      }
-      if (framePage !== 'sandbox.html') await recoverFrame('sandbox.html');
+    } else if (mode === 'make' || mode === 'library') {
+      await myGames(mode);
     } else {
       await runSession(playable);
     }

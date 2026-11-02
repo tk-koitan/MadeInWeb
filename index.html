@@ -157,6 +157,20 @@
   #mk-msg { font-size: 1.9cqh; font-weight: 700; color: #c0392b; text-align: center; white-space: pre-wrap; min-height: 1em; }
   #mk-msg.ok { color: #2e8b57; }
 
+  /* ---- マイゲーム ---- */
+  #library { position: absolute; inset: 0; box-sizing: border-box; background: #fdf6e3; color: #333;
+    display: flex; flex-direction: column; gap: 1cqh; padding: 2cqh 4cqw 0; }
+  #lib-random { align-self: center; margin: 1cqh 0; }
+  #lib-random:disabled { opacity: .4; }
+  #lib-list { flex: 1; overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; display: grid;
+    grid-template-columns: 1fr 1fr; gap: 2cqw; align-content: start; padding-bottom: 3cqh; }
+  .lib-card { cursor: pointer; }
+  .lib-actions { display: flex; gap: 1.5cqw; margin-top: 1cqh; }
+  .lib-actions button { flex: 1; font: inherit; font-size: 1.7cqh; font-weight: 800; padding: .7cqh 0; border-radius: 1cqh;
+    border: .25cqh solid #d8c9a5; background: #fff; color: #8a6d35; touch-action: manipulation; }
+  .lib-actions button.del.sure { background: #c0392b; border-color: #c0392b; color: #fff; }
+  .sel-head .head-right { margin-left: auto; margin-right: 9cqw; }
+
   #version { position: absolute; top: 1.2cqh; right: 2cqw; font-size: 1.8cqh; color: #999; z-index: 60;
     padding: 0.5cqh 1cqw; user-select: none; -webkit-user-select: none; font-variant-numeric: tabular-nums; }
   #error { position: absolute; left: 3%; right: 3%; top: 4%; max-height: 40%; overflow: auto; padding: 8px;
@@ -197,7 +211,7 @@
   <div id="title-menu" class="hidden">
     <button id="btn-start" class="btn primary">スタート</button>
     <button id="btn-select" class="btn">えらんで遊ぶ</button>
-    <button id="btn-make" class="btn small">つくる</button>
+    <div class="mk-row"><button id="btn-library" class="btn small">マイゲーム</button><button id="btn-make" class="btn small">つくる</button></div>
   </div>
   <!-- えらんで遊ぶ：ミニゲーム・スピード・難易度を選ぶ -->
   <div id="select" class="hidden">
@@ -208,7 +222,7 @@
   </div>
   <!-- つくる：AI に作ってもらったミニゲームを貼り付けて、その場で遊ぶ（host/make.js） -->
   <div id="make" class="hidden">
-    <div class="sel-head"><button id="mk-back" class="btn small">◀ もどる</button><div class="sel-title">つくる</div></div>
+    <div class="sel-head"><button id="mk-back" class="btn small">◀ もどる</button><div class="sel-title">つくる</div><button id="mk-library" class="btn small head-right">マイゲーム ▶</button></div>
     <div id="mk-body">
       <div class="mk-help">① 「AI への説明をコピー」して AI に貼り付け、作りたいゲームを書き足す<br>② AI が作った <b>zip</b> を読み込んで「あそぶ」<br>（zip がないときは、下に main.js と game.json を貼り付けても遊べます。ゲームはこのブラウザの中だけで動きます）</div>
       <div class="mk-row"><button id="mk-prompt" class="btn small">① AI への説明をコピー</button><label class="btn small zip" for="mk-file">② zip を読み込む</label></div>
@@ -228,7 +242,17 @@
       <div class="sel-label">スピード</div><div id="mk-speed" class="seg"></div>
       <div class="sel-label">難易度</div><div id="mk-diff" class="seg"></div>
     </div>
-    <div class="mk-foot"><textarea id="mk-out" class="hidden" readonly></textarea><div id="mk-msg"></div><button id="mk-play" class="btn primary">▶ あそぶ</button></div>
+    <div class="mk-foot"><textarea id="mk-out" class="hidden" readonly></textarea><div id="mk-msg"></div><div class="mk-row"><button id="mk-save" class="btn">保存</button><button id="mk-play" class="btn primary">▶ あそぶ</button></div></div>
+  </div>
+  <!-- マイゲーム：「つくる」で保存したゲームの一覧（host/library.js） -->
+  <div id="library" class="hidden">
+    <div class="sel-head"><button id="lib-back" class="btn small">◀ もどる</button><div class="sel-title">マイゲーム</div></div>
+    <button id="lib-random" class="btn primary">ランダムで遊ぶ</button>
+    <div class="sel-label">スピード・難易度（1本だけ遊ぶとき）</div>
+    <div id="lib-speed" class="seg"></div><div id="lib-diff" class="seg"></div>
+    <div class="sel-label">ミニゲーム（タップで遊ぶ）</div>
+    <div id="lib-empty" class="mk-help hidden">まだありません。「つくる」で AI が作った zip を読み込むと、ここに保存されます。</div>
+    <div id="lib-list"></div>
   </div>
   <div id="version"></div>
   <div id="error" class="hidden"></div>

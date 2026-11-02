@@ -2,6 +2,7 @@
 // ファイルはサーバーに置かず、本体がサンドボックス（sandbox/make.html）にそのまま渡す。
 // 貼り付けた文字は localStorage に残す（素材ファイルはページを開いている間だけ）。
 import { parseGameInfo, safeAssetPath, safeAudioPath } from './gameinfo.js';
+import { saveGame, loadGameData } from './library.js';
 
 const $ = id => document.getElementById(id);
 const STORE_KEY = 'madeinweb.make';
@@ -142,12 +143,37 @@ async function addFiles(list, say) {
   }
   let total = 0;
   for (const d of files.values()) total += d.byteLength;
-  if (total > TOTAL_MAX) say(`素材の合計が大きすぎます（${(total / 1e6).toFixed(0)}MB）。${TOTAL_MAX / 1e6}MB までにしてください`);
-  else if (skipped.length) say(`使えないファイルを外しました：\n${skipped.join('\n')}`);
-  else if (added.includes('main.js')) say(`読み込みました（${added.length}個のファイル）。「▶ あそぶ」で遊べます`, true);
-  else if (added.length) say(`${added.length}個のファイルを読み込みました`, true);
   refreshAudio();
   showFiles();
+  if (total > TOTAL_MAX) { say(`素材の合計が大きすぎます（${(total / 1e6).toFixed(0)}MB）。${TOTAL_MAX / 1e6}MB までにしてください`); return false; }
+  if (skipped.length) say(`使えないファイルを外しました：\n${skipped.join('\n')}`);
+  else if (added.length) say(`${added.length}個のファイルを読み込みました`, true);
+  return added.includes('main.js');
+}
+
+/** いまの main.js・game.json・素材を、マイゲームに保存する */
+async function saveCurrent(say, prefix = '') {
+  const r = build($('mk-code').value, $('mk-json').value);
+  if (r.error) { say(prefix + r.error); return false; }
+  try {
+    await saveGame({ code: $('mk-code').value, json: $('mk-json').value, files });
+    say(`${prefix}マイゲームに保存しました：${r.game.title}\n（同じタイトルのゲームは上書きされます）`, true);
+    return true;
+  } catch (err) {
+    say(`${prefix}保存できませんでした：${err && err.message ? err.message : err}`);
+    return false;
+  }
+}
+
+/** 保存したゲームを、つくる画面に読み込む（マイゲームの「編集」） */
+export async function openInEditor(key) {
+  const data = await loadGameData(key);
+  $('mk-code').value = data.code;
+  $('mk-json').value = data.json;
+  saveStore({ code: data.code, json: data.json });
+  files = data.files;
+  log = [];
+  refreshAudio();
 }
 function refreshAudio() {
   for (const url of audioUrls.values()) URL.revokeObjectURL(url);
@@ -243,8 +269,10 @@ export function makeScreen({ segment, speeds, diffs }) {
   $('mk-file').onchange = async e => {
     const list = [...e.target.files];
     e.target.value = '';
-    if (list.length) await addFiles(list, say);
+    // ゲーム一式の zip なら、そのままマイゲームに保存する
+    if (list.length && await addFiles(list, say)) await saveCurrent(say, '読み込みました。');
   };
+  $('mk-save').onclick = () => saveCurrent(say);
   $('mk-clear').onclick = () => { files = new Map(); refreshAudio(); showFiles(); say('素材ファイルを外しました', true); };
 
   $('make').classList.remove('hidden');
@@ -252,6 +280,7 @@ export function makeScreen({ segment, speeds, diffs }) {
   return new Promise(resolve => {
     const close = value => { $('make').classList.add('hidden'); resolve(value); };
     $('mk-back').onclick = () => close(null);
+    $('mk-library').onclick = () => close({ goto: 'library' });
     $('mk-play').onclick = () => {
       const r = build(code.value, json.value);
       if (r.error) { say(r.error); return; }
