@@ -4,5 +4,7 @@
   "author": "koitan",
   "instruction": "つめ！",
   "beats": 16,
-  "timeoutResult": "lose"
+  "timeoutResult": "lose",
+  "winSound": "cheer",
+  "loseSound": "wahwah"
 }

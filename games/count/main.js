@@ -43,6 +43,20 @@ export default {
       while (this.acc <= -STEP) { this.acc += STEP; this.set(ctx, this.value - 1); }
     });
 
+    // 当たり：アヒルたちが笑顔で跳ねる。はずれ：アヒルたちがしょんぼりして、池がくすむ
+    ctx.texture('assets/duck_happy.png');
+    ctx.texture('assets/duck_sad.png');
+    ctx.onResult(win => {
+      for (const duck of this.ducks) { duck.vx = duck.vy = 0; duck.image = win ? 'assets/duck_happy.png' : 'assets/duck_sad.png'; }
+      if (win) {
+        ctx.background('#fff1a8');
+        ctx.happy([...this.ducks, this.num]);
+      } else {
+        ctx.background('#a3ad9f');
+        ctx.sad(this.ducks);
+      }
+    });
+
     // 最後の拍で判定する
     ctx.onBeat(b => {
       if (b !== ctx.beats - 1 || ctx.result) return;
@@ -68,6 +82,7 @@ export default {
   },
 
   update(dt, ctx) {
+    if (ctx.result) return;
     const p = this.pond;
     for (const duck of this.ducks) {
       if (duck.x < p.x0 + 45 || duck.x > p.x1 - 45) { duck.vx = -duck.vx; duck.x = Math.max(p.x0 + 45, Math.min(p.x1 - 45, duck.x)); }

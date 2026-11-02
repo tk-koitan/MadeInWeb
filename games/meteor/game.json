@@ -5,6 +5,8 @@
   "instruction": "撃て！",
   "beats": 8,
   "timeoutResult": "lose",
+  "winSound": "fanfare",
+  "loseSound": "buzzer",
   "camera": "perspective",
   "bgm": "assets/bgm.mp3",
   "sounds": {

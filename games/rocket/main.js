@@ -28,6 +28,21 @@ export default {
     }
     this.power = 0;
 
+    // 発射できた：空が明るくなって、花火が上がる。できなかった：プスンと煙を出して、ロケットがうなだれる
+    ctx.onResult(win => {
+      if (win) {
+        ctx.background('#3a64b8');
+        for (let k = 0; k < 4; k++) ctx.after(0.25 + k * 0.35, () => this.firework(ctx, ctx.random(90, 450), ctx.random(140, 420)));
+      } else {
+        ctx.background('#0b111d');
+        for (const seg of this.segs) seg.alpha = Math.min(seg.alpha, 0.3);
+        ctx.sad(this.rocket, { amp: 30 });
+        for (let k = 0; k < 6; k++) ctx.after(k * 0.12, () => this.puff(ctx, 0.8));
+        const t = ctx.text('プスン…', { x: 360, y: 520, size: 44, weight: 900, color: '#9aa6bd', z: 8, alpha: 0 });
+        ctx.tween(t, { alpha: 1, y: 480 }, { duration: 0.4 });
+      }
+    });
+
     ctx.input.on('down', () => {
       if (ctx.result) return;
       this.power++;
@@ -44,6 +59,18 @@ export default {
         ctx.win();
       }
     });
+  },
+
+  /** 花火（光の粒が丸く広がる） */
+  firework(ctx, x, y) {
+    const color = ctx.pick(['#ffd166', '#ef476f', '#06d6a0', '#8ecae6', '#ffffff']);
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      const p = ctx.circle({ x, y, r: 7, color, z: 4 });
+      ctx.tween(p, { x: x + Math.cos(a) * 120, y: y + Math.sin(a) * 120 + 30, alpha: 0, scale: 0.4 }, { duration: 0.8, ease: 'out' })
+        .then(() => p.remove());
+    }
+    ctx.sound.play('pop');
   },
 
   /** 発射台の煙 */

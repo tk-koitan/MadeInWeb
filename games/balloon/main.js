@@ -20,6 +20,7 @@ export default {
 
     const count = 2 + ctx.difficulty;       // 3〜5個
     let left = count;
+    const balloons = [];
     for (let i = 0; i < count; i++) {
       const x = 80 + (380 / Math.max(1, count - 1)) * i + ctx.random(-20, 20);
       const y = ctx.random(560, 820);
@@ -27,6 +28,7 @@ export default {
 
       const balloon = ctx.sprite('assets/balloon.png', { x, y, w: 120, color });
       balloon.vy = -ctx.random(30, 60) * ctx.difficulty;
+      balloons.push(balloon);
       balloon.onTap(() => {
         ctx.sound.play('pop');
         burst(ctx, balloon.x, balloon.y - 30, color);
@@ -35,5 +37,23 @@ export default {
         if (left === 0) ctx.win();
       });
     }
+
+    // 勝ったら：空が明るくなり、お祝いの風船がたくさん上がって、雲が喜ぶ
+    // 負けたら：空がくもり、残った風船はしぼんで止まり、雲も落ち込む
+    ctx.onResult(win => {
+      if (win) {
+        ctx.background('#fff2b8');
+        ctx.happy([c1, c2]);
+        for (let i = 0; i < 14; i++) {
+          const b = ctx.sprite('assets/balloon.png', { x: ctx.random(30, 510), y: ctx.random(980, 1250), w: ctx.random(50, 80), color: ctx.pick(COLORS), z: 3 });
+          b.vy = -ctx.random(380, 560);
+          b.vr = ctx.random(-0.6, 0.6);
+        }
+      } else {
+        ctx.background('#8d9bab');
+        const left = balloons.filter(b => !b.removed);
+        ctx.sad([c1, c2, ...left]);
+      }
+    });
   },
 };

@@ -5,6 +5,8 @@
   "instruction": "たおせ！",
   "beats": 16,
   "timeoutResult": "lose",
+  "winSound": "cheer",
+  "loseSound": "aww",
   "camera": "perspective",
   "bgm": "assets/bgm.mp3",
   "sounds": {

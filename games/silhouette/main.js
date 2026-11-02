@@ -35,16 +35,32 @@ export default {
       }
     });
     ctx.text('タップで選ぶ', { x: 270, y: 905, size: 30, color: '#a07c3b' });
+
+    // 正解：正体の動物と選んだカードが笑顔で跳ねる。不正解（時間切れも）：正体の動物がしょんぼりする
+    for (const name of names) { ctx.texture(`assets/${name}_happy.png`); ctx.texture(`assets/${name}_sad.png`); }
+    ctx.onResult(win => {
+      this.sil.color = '#ffffff';                      // 時間切れでも正体を見せる
+      this.sil.image = `assets/${this.answer}_${win ? 'happy' : 'sad'}.png`;
+      const chosen = this.chosen;
+      if (chosen) chosen.pic.image = `assets/${chosen.name}_${win ? 'happy' : 'sad'}.png`;
+      if (win) {
+        ctx.background('#ffe08a');
+        ctx.happy([this.sil, ...(chosen ? [chosen.pic] : [])]);
+      } else {
+        ctx.background('#a9a294');
+        ctx.sad([this.sil, ...(chosen ? [chosen.pic] : [])]);
+      }
+    });
   },
 
   select(ctx, c) {
     this.done = true;
+    this.chosen = c;
     c.card.scale = 1.1;
     c.pic.scale = 1.1;
     ctx.tween(c.card, { scale: 1 }, { duration: 0.15 });
     ctx.tween(c.pic, { scale: 1 }, { duration: 0.15 });
     this.sil.color = '#ffffff';                        // シルエットの正体を見せる
-    ctx.tween(this.sil, { scale: 1.12 }, { duration: 0.15, ease: 'back' });
     if (c.name === this.answer) {
       ctx.sound.play('correct');
       c.card.color = '#c8f7c5';

@@ -20,6 +20,21 @@ export default {
     this.rope = ctx.rect({ x: 270, y: 70, w: 6, h: 240, color: '#555', z: -1 });
     ctx.rect({ x: 270, y: 0, w: 540, h: 24, color: '#333' });
 
+    // 積めた：物理を外して、タワーが拍に合わせて踊る。崩れた：ブロックが灰色になり、「くずれた…」がうなだれる
+    ctx.onResult(win => {
+      if (this.hanging) { this.hanging.remove(); this.hanging = null; }
+      if (win) {
+        ctx.background('#fff1b8');
+        for (const b of this.dropped) ctx.physics.remove(b);
+        ctx.happy(this.dropped, { amp: 12 });
+      } else {
+        ctx.background('#6f7887');
+        for (const b of this.dropped) b.color = '#8a8f99';
+        ctx.sad(ctx.text('くずれた…', { x: 270, y: 330, size: 56, weight: 900, color: '#ffffff', stroke: '#6f7887', strokeWidth: 8, z: 5 }), { amp: 40 });
+      }
+      this.label.visible = false;
+    });
+
     this.label = ctx.text(`あと ${this.need}`, { x: 270, y: 330, size: 40, weight: 900, color: '#3d5a80' });
     this.next(ctx);
 

@@ -5,6 +5,8 @@
   "instruction": "数えろ！",
   "beats": 16,
   "timeoutResult": "lose",
+  "winSound": "yay",
+  "loseSound": "aww",
   "bgm": "assets/bgm.mp3",
   "sounds": {
     "click": "assets/click.mp3"

@@ -10,7 +10,7 @@
 //   &speed=0.5..3        スピード（テンポの倍率）を固定
 //   ?debug               通常モードでもエラーと読み込みバーを表示
 //                        （スマホではバージョン表示を5回タップでも切り替えられる）
-import { flash, shake, crack, confetti, clearFx } from './fx.js';
+import { flash, shake, crack, confetti, clearFx, tone } from './fx.js';
 import { unlockAudio, play, clock, playMusic, loadSound, registerSounds, setGameSounds } from './sfx.js';
 import { beginLoad, addItem, addTiming, track } from './loadbar.js';
 import { safeAssetPath, parseGameInfo } from './gameinfo.js';
@@ -34,6 +34,8 @@ const SPEED_EVERY = 4;
 const DIFFICULTY_EVERY = 8;     // 8本クリアごとに難易度 +1
 
 // 本体の音楽（120bpm で生成。テンポが上がったら速く再生する）
+// 勝敗が決まった瞬間の音（組み込み。game.json の winSound / loseSound で選べる）
+const REACTION_SOUNDS = ['cheer', 'yay', 'fanfare', 'woohoo', 'aww', 'wahwah', 'buzzer', 'ohno'];
 const HOST_MUSIC = {
   start: 'audio/start.mp3',
   prepare: 'audio/prepare.mp3',
@@ -392,6 +394,15 @@ function loadGame(game, st, deadline) {
   return Promise.all([ready, audio]).then(([ok]) => ok);
 }
 
+/**
+ * 勝敗が決まった瞬間の演出（ゲーム側はヒットストップでスローになり、ctx.onResult が呼ばれる）。
+ * 歓声 / 残念がる声（game.json の winSound / loseSound で変えられる）と、画面の色調
+ */
+function react(win, game) {
+  if (win) { flash(0.5, 0.25); tone('win'); play(game.winSound || 'cheer'); }
+  else { shake(0.03, 0.35); tone('lose'); play(game.loseSound || 'aww'); }
+}
+
 /** ミニゲームの区間。拍数ぶん遊ばせて、結果を返す（途中で決まっても最後まで続ける） */
 async function gamePhase(T, game, spb, id) {
   activeRunId = id;
@@ -402,9 +413,7 @@ async function gamePhase(T, game, spb, id) {
     if (m.runId !== id || outcome) return;
     if (m.type === 'result') outcome = m.win === true ? 'win' : 'lose';
     if (m.type === 'error') outcome = 'lose';
-    // 勝敗が決まった瞬間の手応え（ゲーム側はヒットストップでスローになる）
-    if (outcome === 'win') flash(0.45, 0.2);
-    else if (outcome === 'lose') shake(0.02, 0.25);
+    if (outcome) react(outcome === 'win', game);
   };
   listeners.add(resultL);
 
@@ -444,7 +453,7 @@ async function gamePhase(T, game, spb, id) {
     })();
   });
 
-  if (!outcome) outcome = game.timeoutResult;  // 時間切れ
+  if (!outcome) { outcome = game.timeoutResult; react(outcome === 'win', game); }  // 時間切れ
   post({ type: 'timeup', runId: id });
   listeners.delete(resultL);
   return { win: outcome === 'win', crashed, end };
@@ -730,7 +739,7 @@ if ('serviceWorker' in navigator) {
     try { localStorage.setItem(DEBUG_KEY, DEBUG ? '1' : '0'); } catch {}
     showVersion();
   });
-  registerSounds({ whoosh: 'audio/whoosh.mp3' });
+  registerSounds({ whoosh: 'audio/whoosh.mp3', ...Object.fromEntries(REACTION_SOUNDS.map(id => [id, `audio/${id}.mp3`])) });
   for (const url of Object.values(HOST_MUSIC)) loadSound(url);
   curtain({ title: 'MadeInWeb', hint: '読み込み中…' });
   let catalog;

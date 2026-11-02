@@ -5,6 +5,8 @@
   "instruction": "なぞれ！",
   "beats": 8,
   "timeoutResult": "lose",
+  "winSound": "fanfare",
+  "loseSound": "aww",
   "bgm": "assets/bgm.mp3",
   "sounds": {
     "chime": "assets/chime.mp3",

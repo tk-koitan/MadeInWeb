@@ -2,7 +2,7 @@
 export default {
   init(ctx) {
     ctx.background('#2d6a4f');
-    ctx.rect({ x: 270, y: 480, w: 500, h: 920, radius: 30, color: '#40916c' });   // 芝生
+    this.lawn = ctx.rect({ x: 270, y: 480, w: 500, h: 920, radius: 30, color: '#40916c' });   // 芝生
 
     this.goalR = [85, 68, 55][ctx.difficulty - 1];
     this.rim = ctx.circle({ x: ctx.random(130, 410), y: 260, r: this.goalR + 10, color: '#1b4332' });
@@ -16,6 +16,27 @@ export default {
     const ball = ctx.sprite('assets/golfball.png', { x: 270, y: 780, w: 84, r: 42 });
     ball.draggable = true;
     this.ball = ball;
+    // 入った：芝生が明るくなって、旗とボールが喜ぶ。外れた：芝生がしおれて、ボールが落ち込む
+    ctx.onResult(win => {
+      ball.draggable = false;
+      if (win) {
+        ctx.background('#b7e4c7');
+        this.lawn.color = '#74c69d';
+        this.speed = 0;
+        ctx.happy(this.flag, { amp: 30 });
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          const star = ctx.text('★', { x: this.hole.x, y: this.hole.y, size: 34, color: ctx.pick(['#ffd166', '#ffffff', '#f4a261']), z: 6 });
+          ctx.tween(star, { x: this.hole.x + Math.cos(a) * 170, y: this.hole.y + Math.sin(a) * 170, alpha: 0, rotation: 3 }, { duration: 0.9, ease: 'out' });
+        }
+      } else {
+        ctx.background('#3f4a42');
+        this.lawn.color = '#5f6e63';
+        this.speed = 0;
+        ctx.sad([ball, this.flag]);
+      }
+    });
+
     ball.onDrop(() => {
       if (ctx.result) return;
       if (ctx.distance(ball, this.hole) < this.goalR) {

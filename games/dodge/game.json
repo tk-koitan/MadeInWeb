@@ -5,6 +5,8 @@
   "instruction": "よけろ！",
   "beats": 8,
   "timeoutResult": "win",
+  "winSound": "woohoo",
+  "loseSound": "ohno",
   "bgm": "assets/bgm.mp3",
   "sounds": {
     "hit": "assets/hit.mp3"

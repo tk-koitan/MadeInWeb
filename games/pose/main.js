@@ -11,6 +11,9 @@ const POSES = {
   // 画面の右 ＝ キャラクターの左腕を真横に
   right: { lUA: [0, 0, 0.05], rUA: [0, 0, 1.25], lLA: [0, 0, 0], rLA: [0, 0, 0.15], spine: [0, 0, -0.12], head: [0, 0.5, 0] },
   left:  { lUA: [0, 0, -1.25], rUA: [0, 0, -0.05], lLA: [0, 0, -0.15], rLA: [0, 0, 0], spine: [0, 0, 0.12], head: [0, -0.5, 0] },
+  // 勝ち負けが決まったとき：両手を上げてバンザイ / 腕をだらんと下げて、うなだれる
+  cheer: { lUA: [0, 0, 0.85], rUA: [0, 0, -0.85], lLA: [0, 0, 0.5], rLA: [0, 0, -0.5], spine: [-0.12, 0, 0], head: [-0.2, 0, 0] },
+  slump: { lUA: [0.15, 0, -1.4], rUA: [0.15, 0, 1.4], lLA: [0, 0, 0], rLA: [0, 0, 0], spine: [0.4, 0, 0], head: [0.6, 0, 0] },
 };
 const BONES = { lUA: 'leftUpperArm', rUA: 'rightUpperArm', lLA: 'leftLowerArm', rLA: 'rightLowerArm', spine: 'spine', head: 'head' };
 
@@ -24,7 +27,7 @@ export default {
     ctx.scene.add(sun);
 
     // ステージの床（3D）
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(1.1, 48), new THREE.MeshStandardMaterial({ color: 0xffb6d0 }));
+    const floor = this.floor = new THREE.Mesh(new THREE.CircleGeometry(1.1, 48), new THREE.MeshStandardMaterial({ color: 0xffb6d0 }));
     floor.rotation.x = -Math.PI / 2;
     ctx.scene.add(floor);
 
@@ -53,6 +56,26 @@ export default {
     ctx.text('同じ向きにスワイプ', { x: 270, y: 905, size: 28, color: '#b0567c' });
     this.rounds = rounds;
     this.cleared = 0;
+
+    // 全問正解：バンザイして跳びはね、ステージが明るくなる。失敗：腕を下げてうなだれ、ステージが暗くなる
+    ctx.onResult(win => {
+      this.waiting = null;
+      this.expression('surprised', 0);
+      this.expression(win ? 'sad' : 'happy', 0);
+      this.expression(win ? 'happy' : 'sad', 1);
+      this.pose = win ? 'cheer' : 'slump';
+      this.arrow.text = win ? '★' : '…';
+      this.arrow.color = win ? '#ffb000' : '#888888';
+      if (win) {
+        ctx.background('#fff3a0');
+        this.floor.material.color.set(0xffd34d);
+        ctx.happy(this.arrow);
+      } else {
+        ctx.background('#9d929a');
+        this.floor.material.color.set(0x8c8088);
+        ctx.sad(this.arrow);
+      }
+    });
 
     // 指を置いてから離すまでの移動の向きで判定する（速さは問わない。50px 以上動かせばよい）
     ctx.input.on('down', e => { this.start = { x: e.x, y: e.y }; });
@@ -126,8 +149,16 @@ export default {
     // ポーズへ近づける・拍に合わせて弾む・まばたき
     this.applyPose(Math.min(1, dt * 14));
     const bounce = Math.abs(Math.sin(ctx.beat * Math.PI));
-    this.hips.position.y = this.hipsY - 0.03 + bounce * 0.03 - (this.pose === 'down' ? 0.12 : 0);
-    this.vrm.scene.rotation.y = Math.sin(ctx.beat * Math.PI * 0.5) * 0.08;
+    if (ctx.result === 'win') {
+      this.hips.position.y = this.hipsY + bounce * 0.14;                        // 拍に合わせて跳びはねる
+      this.vrm.scene.rotation.y = Math.sin(ctx.beat * Math.PI) * 0.35;
+    } else if (ctx.result === 'lose') {
+      this.hips.position.y = this.hipsY - 0.07;                                 // ひざが落ちる
+      this.vrm.scene.rotation.y = Math.sin(ctx.time * 1.5) * 0.05;
+    } else {
+      this.hips.position.y = this.hipsY - 0.03 + bounce * 0.03 - (this.pose === 'down' ? 0.12 : 0);
+      this.vrm.scene.rotation.y = Math.sin(ctx.beat * Math.PI * 0.5) * 0.08;
+    }
     const blink = (ctx.time % 2.7) < 0.12 ? 1 : 0;
     this.expression('blink', ctx.result === 'lose' ? 0 : blink);
   },

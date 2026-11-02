@@ -5,6 +5,8 @@
   "instruction": "割れ！",
   "beats": 8,
   "timeoutResult": "lose",
+  "winSound": "yay",
+  "loseSound": "aww",
   "bgm": "assets/bgm.mp3",
   "sounds": {
     "pop": "assets/pop.mp3"

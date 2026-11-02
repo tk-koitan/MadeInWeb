@@ -159,3 +159,19 @@ At the end, print the list of files you created with their pixel sizes.
 | games/bowling/assets/bgm.mp3 | 10 | Groovy retro bowling alley funk at a steady 120 BPM, four on the floor kick drum, punchy slap bass, wah guitar, bright organ stabs, cheerful, continuous loop with no fade out, starts immediately on the downbeat（seed 1。推定 119 BPM、8.5 秒まで鳴る） |
 | games/bowling/assets/roll.mp3 | 2 | Bowling ball rolling down a wooden lane sound effect, low rumbling roll, no music（seed 1） |
 | games/bowling/assets/crash.mp3 | 2 | Bowling pins crash sound effect, ball smashing into wooden pins, loud clatter, no music（seed 1） |
+
+### 勝ち負けの声（本体の組み込み。audio/）
+
+game.json の winSound / loseSound で選ぶ。すべて seed 1。
+
+| ファイル | 秒 | プロンプト |
+| --- | --- | --- |
+| audio/cheer.mp3 | 2 | Big crowd cheering and applauding excitedly, stadium cheer, yay, whistles, short burst, no music |
+| audio/yay.mp3 | 2 | Group of happy children shouting yay together, joyful celebration cheer, short, no music |
+| audio/fanfare.mp3 | 2 | Short triumphant brass fanfare sting, victory jingle, bright trumpets, one phrase |
+| audio/woohoo.mp3 | 1 | Cute cartoon character happy cheer sound effect, high pitched woohoo, short, no music |
+| audio/aww.mp3 | 2 | Disappointed crowd groaning aww together, sympathetic sigh, short, no music |
+| audio/wahwah.mp3 | 2 | Sad trombone wah wah wah waaah failure sound effect, comedic |
+| audio/buzzer.mp3 | 1 | Game show wrong answer buzzer sound effect, harsh low buzz, short |
+| audio/ohno.mp3 | 1 | Cartoon character sad whimper sound effect, descending oh no, short, no music |
+

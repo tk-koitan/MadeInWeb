@@ -5,6 +5,8 @@
   "instruction": "連打！",
   "beats": 8,
   "timeoutResult": "lose",
+  "winSound": "cheer",
+  "loseSound": "wahwah",
   "bgm": "assets/bgm.mp3",
   "sounds": {
     "pump": "assets/pump.mp3",

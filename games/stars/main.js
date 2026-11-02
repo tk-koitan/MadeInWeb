@@ -44,6 +44,21 @@ export default {
     this.preview.visible = false;
     this.mark(0);
 
+    // つながった：夜空が明るくなり、星たちが拍に合わせて踊る。
+    // 時間切れ：光が弱まって、星たちが色を失ってうなだれる
+    ctx.onResult(win => {
+      const parts = this.stars.flatMap(s => [s.core, s.halo, s.label]);
+      if (win) {
+        ctx.background('#1c2f7a');
+        ctx.happy(parts, { amp: 16 });
+      } else {
+        ctx.background('#020309');
+        ctx.tween(this.bloom, { strength: 0.25 }, { duration: 0.5 });
+        this.preview.visible = false;
+        ctx.sad(parts, { amp: 18 });
+      }
+    });
+
     ctx.input.on('down', e => {
       if (ctx.result) return;
       this.tracing = true;
@@ -107,7 +122,7 @@ export default {
     const a = this.stars[this.stars.length - 1], b = this.stars[0];
     this.lines.push(this.bar(a.x, a.y, b.x, b.y, this.glow(0.5, 1.5, 2.0)));
     ctx.tween(this.bloom, { strength: 1.8, radius: 0.6 }, { duration: 0.35, ease: 'out' });
-    for (const s of this.stars) ctx.tween(s.core, { scale: 1.5 }, { duration: 0.3, ease: 'back' });
+    for (const s of this.stars) s.core.scale = 1.5;
     ctx.win();
   },
 
@@ -132,6 +147,7 @@ export default {
   },
 
   update(dt, ctx) {
+    if (ctx.result) return;
     // まだつないでいない星は、拍に合わせてゆっくり明滅する
     const pulse = 1 + 0.15 * Math.sin(ctx.beat * Math.PI * 2);
     this.stars.forEach((s, k) => { if (k >= this.next) s.core.scale = pulse; });

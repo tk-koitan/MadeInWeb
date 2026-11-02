@@ -61,6 +61,25 @@ export default {
 
     this.period = [1.5, 1.15, 0.85][ctx.difficulty - 1];   // 着地点が1往復する時間（ゲーム内の秒）
     this.state = 'ready';
+
+    // 着地できた：空が明るくなり、サムズアップのあとダンス。
+    // 失敗：空がくもる。跳ばなかったときは首を横にふって、悲しい顔
+    ctx.onResult(win => {
+      this.marker.visible = this.arc.visible = false;
+      const setFace = (name, v) => { if (this.face && name in this.face.morphTargetDictionary) this.face.morphTargetInfluences[this.face.morphTargetDictionary[name]] = v; };
+      if (win) {
+        ctx.background('#ffe48a');
+        ctx.happy(flag, { amp: 0.15 });
+        ctx.after(0.9, () => ctx.playAnimation(this.robot, 'Dance', { fade: 0.2 }));
+      } else {
+        ctx.background('#6b7684');
+        if (this.state !== 'fall') {
+          this.state = 'done';
+          ctx.playAnimation(this.robot, 'No', { loop: false, fade: 0.15 });
+          setFace('Sad', 1);
+        }
+      }
+    });
     ctx.text('長押しして、足場の上で はなす', { x: 270, y: 880, size: 28, color: '#2d5a80' });
 
     ctx.input.on('down', () => {

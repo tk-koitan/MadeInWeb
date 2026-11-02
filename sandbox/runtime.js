@@ -225,6 +225,9 @@ class Node {
   set z(v) { this._z = v; this._order(); }
   get color() { return this._color; }
   set color(v) { this._color = v; this._eachMat(m => m.color && m.color.set(v)); }
+  /** 画像（sprite だけ）。代入すると差し替わる */
+  get image() { return this._image; }
+  set image(v) { if (this._swapImage && v !== this._image) { this._image = v; this._swapImage(v); } }
   get visible() { return this.obj.visible; }
   set visible(v) { this.obj.visible = v; }
 
@@ -381,6 +384,11 @@ function makeCtx(s, m) {
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   };
+  const cachedTexture = path => {
+    s.texCache ||= new Map();
+    if (!s.texCache.has(path)) s.texCache.set(path, loadTexture(path));
+    return s.texCache.get(path);
+  };
   const ctx = {
     W, H,
     difficulty: m.difficulty,
@@ -394,6 +402,12 @@ function makeCtx(s, m) {
     get result() { return s.result; },
     /** 拍の頭ごとに fn(拍番号) を呼ぶ。0 拍目（開始直後）も呼ばれる */
     onBeat(fn) { s.beatHandlers.push(fn); },
+    /** 勝敗が決まった瞬間に fn(win) を呼ぶ（ctx.win / lose のときも、時間切れのときも）。勝ち負けの演出に使う */
+    onResult(fn) { s.resultHandlers.push(fn); },
+    /** 喜ばせる：拍に合わせて跳ねて、左右に揺れる。物体（Node）か three の物体、その配列を渡す */
+    happy(target, opts = {}) { react(s, target, 'happy', opts); },
+    /** 落ち込ませる：しょんぼり沈んで傾き、色がくすむ。物体（Node）か three の物体、その配列を渡す */
+    sad(target, opts = {}) { react(s, target, 'sad', opts); },
 
     random,
     randInt: (a, b) => Math.floor(random(a, b + 1)),
@@ -432,20 +446,31 @@ function makeCtx(s, m) {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w0, h0), flatMat(color));
       const n = new Node(s, mesh, r ? { type: 'circle', r } : { type: 'rect', w: w0, h: h0 });
       n._color = color;
-      const tex = loadTexture(path, t => {
-        if (n.removed || (w && h)) return;
+      // 画像の縦横比に合わせて板の大きさを決める（w と h の両方を指定したときは、そのまま）
+      const fitSize = t => {
+        if (n.removed || (w && h) || !t.image || !t.image.width) return;
         const iw = t.image.width, ih = t.image.height;
         let nw = w || (h ? h * iw / ih : iw), nh = h || (w ? w * ih / iw : ih);
         if (fit) { const k = fit / Math.max(iw, ih); nw = iw * k; nh = ih * k; }
         mesh.geometry.dispose();
         mesh.geometry = new THREE.PlaneGeometry(nw, nh);
         if (!r) n.shape = { type: 'rect', w: nw, h: nh };
-      });
+      };
+      const tex = loadTexture(path, fitSize);
       mesh.material.map = tex;
+      n._image = path;
+      // node.image = 'assets/x.png' で画像を差し替える（縦横比は新しい画像に合わせる。ctx.texture で先に読んでおくと、すぐ切り替わる）
+      n._swapImage = path2 => {
+        const t2 = cachedTexture(path2);
+        mesh.material.map = t2;
+        mesh.material.needsUpdate = true;
+        if (t2.image && t2.image.width) fitSize(t2);
+        else { const prev = t2.onUpdate; t2.onUpdate = () => { if (prev) prev(); fitSize(t2); t2.onUpdate = prev; }; }
+      };
       return place(n, p);
     },
-    /** 3D 用のテクスチャを読み込む（例: new THREE.MeshStandardMaterial({ map: ctx.texture('assets/crate.png') })） */
-    texture(path) { return loadTexture(path); },
+    /** 3D 用のテクスチャを読み込む（例: new THREE.MeshStandardMaterial({ map: ctx.texture('assets/crate.png') })）。同じ画像は使い回す */
+    texture(path) { return cachedTexture(path); },
     /** three の 3D オブジェクトを 3D の層に置く（奥行き z = 0 の面に置かれる）。r は当たり判定の半径 */
     add3D(object, { r = 100, ...p } = {}) {
       return place(new Node(s, object, { type: 'circle', r }, s.scene), p);
@@ -698,6 +723,57 @@ function finish(s, win, byTimeup = false) {
   s.result = win ? 'win' : 'lose';
   if (!byTimeup) s.hitstop = HITSTOP_SEC;   // 勝敗が決まった瞬間、少しのあいだスローにする
   send({ type: 'result', runId: s.runId, win });
+  for (const fn of s.resultHandlers) safe(() => fn(win));
+}
+
+// ---------------------------------------------------------------- 喜ぶ・落ち込む（ctx.happy / ctx.sad）
+const GLOOM = new THREE.Color('#7d8291');
+function react(s, target, kind, { amp, phase } = {}) {
+  for (const t of (Array.isArray(target) ? target : [target])) {
+    const isNode = t instanceof Node;
+    if (!isNode && !(t && t.isObject3D)) continue;
+    s.reactions = s.reactions.filter(r => r.t !== t);
+    let size = 1;
+    if (!isNode) { const b = new THREE.Box3().setFromObject(t); if (!b.isEmpty()) size = b.getSize(new THREE.Vector3()).y || 1; }
+    s.reactions.push({
+      t, isNode, kind, t0: s.time,
+      phase: phase ?? s.reactions.length * 0.29,
+      amp: amp ?? (isNode ? 22 : size * 0.25),
+      base: isNode
+        ? { x: t.x, y: t.y, rot: t.rotation, scale: t.scale, color: t.color !== undefined ? new THREE.Color(t.color) : null }
+        : { y: t.position.y, rx: t.rotation.x, rz: t.rotation.z },
+    });
+  }
+}
+function updateReactions(s) {
+  for (const r of s.reactions) {
+    const { t, base } = r;
+    if (t.removed) continue;
+    const u = s.time - r.t0;
+    if (r.kind === 'happy') {
+      // 拍（0.5秒）ごとに1回跳ねる。最初は大きく、だんだん落ち着く
+      const b = u / SEC_PER_BEAT + r.phase;
+      const hop = Math.abs(Math.sin(Math.PI * b)) * (0.6 + 0.4 * Math.exp(-u));
+      const sway = Math.sin(Math.PI * b) * 0.2;
+      if (r.isNode) { t.y = base.y - hop * r.amp; t.rotation = base.rot + sway; t.scale = base.scale * (1 + 0.1 * hop); }
+      else { t.position.y = base.y + hop * r.amp; t.rotation.z = base.rz + sway; }
+    } else {
+      // ゆっくり沈んで傾き、小さく揺れ続ける。色は灰色に寄せる
+      const k = 1 - Math.exp(-u * 5);
+      const sway = Math.sin(u * 2.4 + r.phase * 6) * 0.04;
+      if (r.isNode) {
+        t.y = base.y + r.amp * 0.6 * k;
+        t.rotation = base.rot + (0.28 + sway) * k * (r.phase % 0.58 < 0.29 ? 1 : -1);
+        t.scale = base.scale * (1 - 0.12 * k);
+        // 色をくすませる（文字は色を変えると描き直しになって重いので、文字以外だけ。色が落ち着いたら止める）
+        if (base.color && !t._t && !r.colorDone) { t.color = '#' + base.color.clone().lerp(GLOOM, 0.65 * k).getHexString(); r.colorDone = k > 0.995; }
+      } else {
+        t.position.y = base.y - r.amp * 0.35 * k;
+        t.rotation.x = base.rx + 0.4 * k;
+        t.rotation.z = base.rz + sway * k;
+      }
+    }
+  }
 }
 
 const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
@@ -750,6 +826,7 @@ async function load(m) {
   disposeSession(nextSession);
   const s = {
     runId: m.runId, nodes: new Set(), tweens: [], timers: [], handlers: {}, beatHandlers: [], nextBeat: 0, pending: [],
+    resultHandlers: [], reactions: [],
     vrms: [], mixers: [], mixerOf: new Map(), playing: new Map(), disposed: false,
     scene: new THREE.Scene(), scene2D: new THREE.Scene(), composer: null, fxLayers: '3d',
     camera3D: makeCamera3D(m.camera === 'perspective' ? 'perspective' : 'ortho'),
@@ -864,6 +941,7 @@ function step(s, dt) {
     if (k >= 1 || tw.node.removed) { s.tweens.splice(s.tweens.indexOf(tw), 1); tw.resolve(); }
   }
   for (const mixer of s.mixers) mixer.update(dt);
+  updateReactions(s);
   for (const vrm of s.vrms) vrm.update(dt);
   for (const n of s.nodes) {
     if (n._body) continue;            // 物理が付いた物体は、物理エンジンが動かす

@@ -36,6 +36,21 @@ export default {
 
     ctx.text('迫る隕石をタップ！', { x: 270, y: 905, size: 28, color: '#8fa3c8' });
 
+    // 守りきった：宇宙が明るい紫に、星が金色になって「まもった！」が跳ねる。
+    // 当たった：赤黒い空になり、星が消えかけて「ドカーン…」がうなだれる
+    ctx.onResult(win => {
+      if (win) {
+        ctx.background('#2b2f8f');
+        this.stars.material.color.set(0xffd76a);
+        this.stars.material.size = 7;
+        ctx.happy(ctx.text('まもった！', { x: 270, y: 360, size: 72, weight: 900, color: '#ffd76a', stroke: '#2b2f8f', strokeWidth: 8, z: 8 }));
+      } else {
+        ctx.background('#2a0606');
+        this.stars.material.color.set(0x5a3a3a);
+        ctx.sad(ctx.text('ドカーン…', { x: 270, y: 360, size: 72, weight: 900, color: '#ff8a7a', stroke: '#2a0606', strokeWidth: 8, z: 8 }), { amp: 40 });
+      }
+    });
+
     ctx.input.on('down', e => {
       if (ctx.result) return;
       ctx.sound.play('zap');

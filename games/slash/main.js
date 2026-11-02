@@ -26,6 +26,18 @@ export default {
       this.melon.vr = ctx.random(-3, 3);
     });
 
+    // 斬れた：部屋がぱっと明るくなり、「スパッ！」が跳ねる。外した：薄暗くなり、「スカッ…」がうなだれる
+    ctx.onResult(win => {
+      if (win) {
+        ctx.background('#ffe08a');
+        if (this.splashText) ctx.happy(this.splashText);
+      } else {
+        ctx.background('#8f8672');
+        const t = ctx.text('スカッ…', { x: 270, y: 300, size: 64, weight: 900, color: '#6b6b6b', stroke: '#ffffff', strokeWidth: 6, z: 6 });
+        ctx.sad(t, { amp: 40 });
+      }
+    });
+
     ctx.input.on('down', () => {
       if (ctx.result || this.used || !this.tossed) return;
       this.used = true;
@@ -59,7 +71,7 @@ export default {
       ctx.tween(p, { x: x + Math.cos(a) * dist, y: y + Math.sin(a) * dist + 60, alpha: 0, scale: 0.4 }, { duration: 0.5 })
         .then(() => p.remove());
     }
-    ctx.text('スパッ！', { x, y: y - 120, size: 64, color: '#e4572e', stroke: '#ffffff', strokeWidth: 6, z: 6 });
+    this.splashText = ctx.text('スパッ！', { x, y: y - 120, size: 64, color: '#e4572e', stroke: '#ffffff', strokeWidth: 6, z: 6 });
   },
 
   update(dt) {

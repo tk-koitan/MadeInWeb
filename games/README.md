@@ -31,6 +31,7 @@ games/<id>/
 | `timeoutResult` | 時間切れのときの結果。達成型は `"lose"`、生き残り型は `"win"` |
 | `camera` | 任意。`"perspective"` にすると 3D の層が遠近感のあるカメラになる（省略時は `"ortho"`＝遠近感なし） |
 | `bgm` | 任意。ミニゲーム中に流す曲（例 `"assets/bgm.mp3"`）。**120 BPM** で作り、拍数ぶんの長さ以上にする。テンポが上がると速く再生される |
+| `winSound` / `loseSound` | 任意。勝ち / 負けが決まった瞬間に本体が鳴らす音。組み込みの `cheer`（歓声）`yay`（子どもの「やったー」）`fanfare` `woohoo`（キャラの喜ぶ声）/ `aww`（残念がる声）`wahwah`（残念なラッパ）`buzzer` `ohno`（キャラの悲しむ声）か、`sounds` に書いた名前。省略すると `cheer` / `aww` |
 | `sounds` | 任意。効果音の一覧（例 `{ "pop": "assets/pop.mp3" }`）。`ctx.sound.play("pop")` で鳴る。組み込みの音と同じ名前なら上書きする |
 
 ## main.js
@@ -50,6 +51,30 @@ export default {
 - 結果が出たあとも、本体が次へ進むまで少しの間 `update` は呼ばれ続けます。`if (ctx.result) return;` で止めます
 - 制限時間の管理は本体が行います。ゲーム側でタイマーを持つ必要はありません
 - 途中で勝敗が決まっても、ミニゲームは決められた拍数の最後まで表示されます。その後、本体が ○／× を出します
+
+### 勝ち負けの演出（かならず入れる）
+
+勝敗が決まった瞬間、本体は音（`winSound` / `loseSound`）を鳴らし、画面の色調を変えます（勝ちは明るく鮮やかに＋光の筋、負けは灰色で暗く）。
+ゲーム側でも `ctx.onResult` で、勝ったか負けたかが一目でわかる演出を入れてください。
+
+```js
+ctx.onResult(win => {                       // ctx.win / lose のときも、時間切れのときも呼ばれる
+  if (win) {
+    ctx.background('#fff2b8');              // 背景を明るい色に
+    player.image = 'assets/player_happy.png';  // 生き物はうれしい表情に（init で ctx.texture('assets/player_happy.png') しておく）
+    ctx.happy([player, label]);             // 拍に合わせて跳ねて喜ぶ
+  } else {
+    ctx.background('#6f7887');              // 背景を暗い・くすんだ色に
+    player.image = 'assets/player_sad.png';
+    ctx.sad(player);                        // しょんぼり沈んで、色がくすむ
+  }
+});
+```
+
+- 生き物は表情を変える（喜ぶ / 悲しむ）。物（箱・星など）は `ctx.happy` で踊らせる / `ctx.sad` でうなだれさせる
+- 「やった！」「ざんねん…」などの文字を出して `happy` / `sad` を付けるのもよい
+- 勝ったら花火・紙吹雪・キラキラなど、負けたら煙・ひび・暗転などを足すと、もっと伝わる
+- 勝敗が決まったあとも `update` は呼ばれます。`if (ctx.result) return;` で止めた物は、`happy` / `sad` の動きだけになります
 
 ## 進行（本体が管理）
 
@@ -103,6 +128,7 @@ export default {
 | `vx`, `vy`, `vr` | 速度（px/秒、ラジアン/秒）。毎フレーム自動で移動する |
 | `text` | 文字の Node だけ。代入で書き換え |
 | `onTap(fn)` | 指が触れた瞬間に呼ばれる。重なっていたら一番手前だけ |
+| `image` | `sprite` の画像。代入すると差し替わる（例 `player.image = 'assets/player_happy.png'`）。`init` で `ctx.texture(パス)` を呼んでおくと、すぐ切り替わる |
 | `draggable = true / 'x' / 'y'` | ドラッグで動かせる（`'x'` は横だけ） |
 | `onDrag(fn)`, `onDrop(fn)` | ドラッグ中 / 離したとき |
 | `push(dx, dy)` | 勢いをつける（速度 px/秒 を足す）。物理を付けた物体にも使える |
@@ -116,6 +142,9 @@ export default {
 | `ctx.tween(node, { x, y, scale, alpha, rotation }, { duration, ease, delay })` | なめらかに変化。Promise を返す。`ease`: `linear` `in` `out` `inOut` `back` |
 | `ctx.after(sec, fn)`, `ctx.every(sec, fn)` | 一定時間後 / 一定間隔で実行（ゲーム内時間） |
 | `ctx.onBeat(fn)` | 拍の頭ごとに `fn(拍番号)` を呼ぶ（0拍目から） |
+| `ctx.onResult(fn)` | 勝敗が決まった瞬間に `fn(win)` を呼ぶ（時間切れのときも）。勝ち負けの演出に使う |
+| `ctx.happy(物, { amp })` | 喜ばせる：拍に合わせて跳ねて揺れる。物は Node か three の物体、その配列。`amp` は跳ねる高さ（Node は px、3D は m） |
+| `ctx.sad(物, { amp })` | 落ち込ませる：沈んで傾き、色がくすむ（文字以外） |
 | `ctx.overlap(a, b)` | 2つの Node が重なっているか（円・四角） |
 | `ctx.distance(a, b)` | 中心間の距離 |
 
@@ -191,7 +220,7 @@ ctx.input.x; ctx.input.y; ctx.input.down;
 
 ### 音
 
-`ctx.sound.play(id)`：`game.json` の `sounds` に書いた名前、または組み込みの `pop` `hit` `coin` `jump` `tick` `whoosh` `spin`
+`ctx.sound.play(id)`：`game.json` の `sounds` に書いた名前、または組み込みの `pop` `hit` `coin` `jump` `tick` `whoosh` `spin`、勝ち負けの声 `cheer` `yay` `fanfare` `woohoo` `aww` `wahwah` `buzzer` `ohno`
 
 ### 乱数
 

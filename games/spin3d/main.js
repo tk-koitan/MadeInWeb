@@ -25,6 +25,19 @@ export default {
     this.label = ctx.text(`0 / ${this.goal}`, { x: 270, y: 760, size: 72, color: '#333333' });
     ctx.text('← 横にスワイプ →', { x: 270, y: 880, size: 28, color: '#a07c3b' });
 
+    // まわしきった：明るくなって、箱と数字が跳ねて喜ぶ。足りなかった：くすんで、箱がうなだれる
+    ctx.onResult(win => {
+      if (win) {
+        ctx.background('#ffe7a3');
+        ctx.happy([this.cube, this.label]);
+        this.omega += 12;                       // 喜びの高速回転
+      } else {
+        ctx.background('#a8a196');
+        this.label.color = '#555555';
+        ctx.sad([this.cube, this.label]);
+      }
+    });
+
     ctx.input.on('move', e => {
       if (ctx.result) return;
       this.omega += e.dx * 0.03;
@@ -46,7 +59,6 @@ export default {
     if (this.turns >= this.goal) {
       ctx.sound.play('clear');
       this.label.color = '#e4572e';
-      ctx.tween(this.cube, { scale: 1.25 }, { duration: 0.2, ease: 'back' });
       ctx.win();
     }
   },

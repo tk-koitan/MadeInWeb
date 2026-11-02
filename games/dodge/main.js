@@ -8,6 +8,23 @@ export default {
     // 当たり判定は見た目より少し小さい円にする（理不尽に当たらないように）
     this.player = ctx.sprite('assets/player.png', { x: 270, y: 800, w: 96, r: 36 });
     this.player.draggable = 'x';                                              // 横だけ動かせる
+    // 勝ち負けの表情（先に読んでおくと、切り替えた瞬間に出る）
+    ctx.texture('assets/player_happy.png');
+    ctx.texture('assets/player_sad.png');
+    ctx.onResult(win => {
+      this.player.draggable = false;
+      if (win) {
+        // 生き残った：夜明けの空になって、跳ねて喜ぶ
+        ctx.background('#f6b968');
+        this.player.image = 'assets/player_happy.png';
+        ctx.happy(this.player);
+      } else {
+        // 当たった：真っ暗になって、しょんぼり
+        ctx.background('#0d0e12');
+        this.player.image = 'assets/player_sad.png';
+        ctx.sad(this.player);
+      }
+    });
     this.rocks = [];
     this.interval = [0.5, 0.36, 0.26][ctx.difficulty - 1];
     this.cooldown = 0.2;
@@ -33,8 +50,6 @@ export default {
       if (rock.y > 1100) rock.remove();
       if (ctx.overlap(p, rock)) {
         ctx.sound.play('hit');
-        p.color = '#ff7070';
-        ctx.tween(p, { scale: 1.4, alpha: 0.4 }, { duration: 0.3 });
         ctx.lose();
         break;
       }

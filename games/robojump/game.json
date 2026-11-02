@@ -5,8 +5,12 @@
   "instruction": "ためてジャンプ！",
   "beats": 8,
   "timeoutResult": "lose",
+  "winSound": "woohoo",
+  "loseSound": "ohno",
   "camera": "perspective",
-  "preload": ["assets/robot.glb"],
+  "preload": [
+    "assets/robot.glb"
+  ],
   "bgm": "assets/bgm.mp3",
   "sounds": {
     "charge": "assets/charge.mp3",

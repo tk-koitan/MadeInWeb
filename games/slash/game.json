@@ -5,6 +5,8 @@
   "instruction": "切れ！",
   "beats": 8,
   "timeoutResult": "lose",
+  "winSound": "yay",
+  "loseSound": "buzzer",
   "bgm": "assets/bgm.mp3",
   "sounds": {
     "slash": "assets/slash.mp3",

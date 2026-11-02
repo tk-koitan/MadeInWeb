@@ -5,6 +5,8 @@
   "instruction": "まねろ！",
   "beats": 16,
   "timeoutResult": "lose",
+  "winSound": "cheer",
+  "loseSound": "aww",
   "camera": "perspective",
   "preload": [
     "assets/avatar.vrm"

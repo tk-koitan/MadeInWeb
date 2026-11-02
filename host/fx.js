@@ -1,4 +1,4 @@
-// 本体の画面演出（フラッシュ・揺れ・紙吹雪・ひび割れ）
+// 本体の画面演出（フラッシュ・揺れ・紙吹雪・ひび割れ・勝敗の色調）
 const $ = id => document.getElementById(id);
 
 /** 白いフラッシュ */
@@ -78,8 +78,22 @@ export function confetti() {
   confettiRaf = requestAnimationFrame(frame);
 }
 
+/**
+ * 勝敗が決まった瞬間の色調。'win' は明るく鮮やかに＋光の筋、'lose' は灰色で暗く＋周りを暗く。
+ * ゲーム画面（iframe）に CSS のフィルターを掛けるので、どのゲームにも効く
+ */
+export function tone(kind) {
+  const stage = $('stage');
+  stage.classList.remove('tone-win', 'tone-lose');
+  $('rays').classList.remove('on');
+  $('gloom').classList.remove('on');
+  if (kind === 'win') { stage.classList.add('tone-win'); $('rays').classList.add('on'); }
+  if (kind === 'lose') { stage.classList.add('tone-lose'); $('gloom').classList.add('on'); }
+}
+
 /** 演出を消す（次のゲームの前に呼ぶ） */
 export function clearFx() {
+  tone(null);
   cancelAnimationFrame(confettiRaf);
   const cv = $('confetti');
   cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);

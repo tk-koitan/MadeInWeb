@@ -18,6 +18,9 @@ export function parseGameInfo(id, g, audioUrl) {
     camera: g.camera === 'perspective' ? 'perspective' : 'ortho',
     // 先読みするファイル（game.json の "preload"）。ゲームフォルダ内の素材ファイルだけ、最大8個
     preload: (Array.isArray(g.preload) ? g.preload : []).filter(safeAssetPath).slice(0, 8),
+    // 勝敗が決まった瞬間の音（組み込みの音の名前か、"sounds" に書いた名前）。なければ本体の既定（歓声 / 残念がる声）
+    winSound: /^[a-z0-9_-]{1,32}$/i.test(g.winSound) ? g.winSound : null,
+    loseSound: /^[a-z0-9_-]{1,32}$/i.test(g.loseSound) ? g.loseSound : null,
     // テスト用（"test": true）は「えらんで遊ぶ」にだけ出す
     test: g.test === true,
     // 音（game.json の "bgm" と "sounds"）。ゲームフォルダ内の音声ファイルだけを受け付ける

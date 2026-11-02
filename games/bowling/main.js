@@ -39,7 +39,7 @@ export default {
 
     // レーン（すべりやすい木の床）。外に落ちたボールは溝（ガター）に入る
     const laneLen = 2.4 - LANE_FAR;
-    const lane = box(LANE_W, 0.2, laneLen, 0xdaa56a, 0, -0.1, (2.4 + LANE_FAR) / 2);
+    const lane = this.lane = box(LANE_W, 0.2, laneLen, 0xdaa56a, 0, -0.1, (2.4 + LANE_FAR) / 2);
     ctx.physics3d.add(lane, { static: true, friction: 0.08, bounce: 0.1 });
     for (let i = -1; i <= 1; i += 2) {
       box(0.04, 0.005, laneLen, 0xb4844f, i * 0.3, 0.001, (2.4 + LANE_FAR) / 2);         // レーンの目印の線
@@ -92,6 +92,25 @@ export default {
       });
     }
 
+    // 倒せた：照明がカラフルに変わり、レーンが金色に光って、残ったピンも踊る。
+    // 足りなかった：照明が落ちて、ボールがうなだれる
+    ctx.onResult(win => {
+      this.hint.visible = false;
+      if (win) {
+        ctx.background('#3b2a7a');
+        this.lane.material.emissive.set(0x6a4a10);
+        const all = this.pins.every(p => p.userData.fallen);
+        ctx.happy(ctx.text(all ? 'ストライク！' : 'ナイス！', { x: 270, y: 220, size: 72, weight: 900, color: '#ffd23f', stroke: '#3b2a7a', strokeWidth: 10, z: 5 }));
+        for (const p of this.pins.filter(p => !p.userData.fallen)) { ctx.physics3d.remove(p); ctx.happy(p, { amp: 0.08 }); }
+        this.party = true;
+      } else {
+        ctx.background('#07080c');
+        this.lane.material.color.set(0x6b5a48);
+        ctx.sad(ctx.text(this.thrown ? 'ざんねん…' : 'なげて！', { x: 270, y: 220, size: 64, weight: 900, color: '#9aa3b5', stroke: '#07080c', strokeWidth: 8, z: 5 }), { amp: 40 });
+      }
+      this.label.visible = false;
+    });
+
     this.thrown = false;
     this.label = ctx.text(`${this.need}本たおせ！`, { x: 270, y: 120, size: 40, weight: 900, color: '#ffffff', stroke: '#1d2333', strokeWidth: 8 });
     this.hint = ctx.text('さわった所から、上にスワイプ', { x: 270, y: 880, size: 26, color: '#c8d3ea' });
@@ -122,6 +141,8 @@ export default {
     cam.position.z += (tz - cam.position.z) * Math.min(1, dt * 3);
     cam.lookAt(0, 0.05, Math.min(cam.position.z - 5.9, -3.2));
 
+    // 勝ったあとは、レーンの色が虹色にゆっくり変わる
+    if (this.party) this.lane.material.color.setHSL((ctx.time * 0.4) % 1, 0.65, 0.62);
     if (ctx.result) return;
     // 倒れたピンを数える（大きく傾いたまま 0.3 秒たったか、レーンから落ちたもの。ぐらついただけでは数えない）
     const up = new ctx.THREE.Vector3();

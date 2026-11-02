@@ -5,6 +5,8 @@
   "instruction": "回せ！",
   "beats": 16,
   "timeoutResult": "lose",
+  "winSound": "fanfare",
+  "loseSound": "wahwah",
   "bgm": "assets/bgm.mp3",
   "sounds": {
     "spin": "assets/spin.mp3",

@@ -5,6 +5,8 @@
   "instruction": "選べ！",
   "beats": 8,
   "timeoutResult": "lose",
+  "winSound": "yay",
+  "loseSound": "aww",
   "bgm": "assets/bgm.mp3",
   "sounds": {
     "correct": "assets/correct.mp3",
