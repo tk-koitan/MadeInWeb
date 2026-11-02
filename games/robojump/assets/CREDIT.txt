@@ -1,0 +1,8 @@
+robot.glb
+  モデル: RobotExpressive（Tomás Laulhé https://www.patreon.com/quaternius 、表情の追加など Don McCurdy）
+  入手元: https://github.com/mrdoob/three.js （examples/models/gltf/RobotExpressive/）
+  ライセンス: CC0 1.0（クレジット表記は不要。作者への感謝として記載）
+  改変: なし
+
+bgm.mp3, charge.mp3, jump.mp3, land.mp3, fall.mp3
+  ComfyUI（Stable Audio 3）で生成（tools/comfy-audio.mjs。プロンプトは tools/ASSETS.md）

@@ -1,0 +1,17 @@
+{
+  "sdk": "0.1",
+  "author": "koitan",
+  "title": "ロボジャンプ（glb）",
+  "instruction": "ためてジャンプ！",
+  "beats": 8,
+  "timeoutResult": "lose",
+  "camera": "perspective",
+  "preload": ["assets/robot.glb"],
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "charge": "assets/charge.mp3",
+    "jump": "assets/jump.mp3",
+    "land": "assets/land.mp3",
+    "fall": "assets/fall.mp3"
+  }
+}

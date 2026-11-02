@@ -141,3 +141,13 @@ At the end, print the list of files you created with their pixel sizes.
 | games/pose/assets/bgm.mp3 | 12 | Energetic J-pop dance groove at a steady 120 BPM, four on the floor kick drum, funky slap bass, bright synth brass hits, cheerful idol stage music, continuous loop with no fade out, starts immediately on the downbeat（seed 1） |
 | games/pose/assets/cue.mp3 | 1 | Short bright cue whistle blip sound effect, single upward chirp, no music |
 | games/pose/assets/good.mp3 | 1 | Cheerful sparkle success ding sound effect, short and bright, no music |
+
+### ロボジャンプの音
+
+| ファイル | 秒 | プロンプト |
+| --- | --- | --- |
+| games/robojump/assets/bgm.mp3 | 6 | Playful robot factory chiptune groove at a steady 120 BPM, four on the floor kick drum, bouncy synth bass, quirky bleeps and metallic percussion, cheerful, continuous loop with no fade out, starts immediately on the downbeat（seed 1） |
+| games/robojump/assets/charge.mp3 | 2 | Rising electronic charging power up whine sound effect, robot energy charging（seed 1） |
+| games/robojump/assets/jump.mp3 | 1 | Cartoon spring boing jump sound effect, single bouncy boing（seed 2） |
+| games/robojump/assets/land.mp3 | 1 | Metallic clank landing sound effect, robot feet landing on steel platform, single hit（seed 1） |
+| games/robojump/assets/fall.mp3 | 1 | Cartoon falling whistle sound effect, descending slide whistle（seed 1） |

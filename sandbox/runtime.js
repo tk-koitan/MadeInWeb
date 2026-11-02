@@ -78,11 +78,12 @@ function timing(s, label, t0) {
   return now;
 }
 
-// ---------------------------------------------------------------- VRM（使うゲームが呼んだときだけライブラリを読み込む）
-let vrmLib = null;
+// ---------------------------------------------------------------- glTF / VRM（使うゲームが呼んだときだけライブラリを読み込む）
+let gltfLib = null, vrmLib = null;
+const loadGltfLib = () => (gltfLib ||= import('../vendor/three-addons/loaders/GLTFLoader.js'));
 function loadVrmLib() {
   vrmLib ||= Promise.all([
-    import('../vendor/three-addons/loaders/GLTFLoader.js'),
+    loadGltfLib(),
     import('../vendor/three-vrm/three-vrm.module.min.js'),
     import('../vendor/three-vrm/three-vrm-animation.module.min.js'),
   ]).then(([gltf, vrm, anim]) => ({ ...gltf, ...vrm, ...anim }));
@@ -121,7 +122,7 @@ function makeGltfLoader(lib, plugin) {
     parser.textureLoader = embeddedImageLoader;
     return { name: 'madeinweb_embedded_images' };
   });
-  loader.register(plugin);
+  if (plugin) loader.register(plugin);
   return loader;
 }
 
@@ -166,11 +167,16 @@ const resize = () => {
 };
 window.addEventListener('resize', resize);
 
+/** 物体と、その中の形・マテリアル・テクスチャ（map 以外の normalMap なども）をすべて片付ける */
 function disposeObject(obj) {
   obj.traverse(o => {
     if (o.geometry) o.geometry.dispose();
     const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-    for (const m of mats) { if (m.map) m.map.dispose(); m.dispose(); }
+    for (const m of mats) {
+      for (const v of Object.values(m)) if (v && v.isTexture) v.dispose();
+      m.dispose();
+    }
+    if (o.isSkinnedMesh && o.skeleton) o.skeleton.dispose();
   });
 }
 
@@ -525,6 +531,53 @@ function makeCtx(s, m) {
       return p;
     },
     /** VRM にアニメーションを再生させる（毎フレーム自動で進む）。返り値は THREE.AnimationAction */
+    // ---- glTF（.glb）
+    /**
+     * glb を読み込む（ゲーム開始前に読み込み完了を待つ）。返り値は { scene, animations }。
+     * scene を ctx.scene に追加して使う。画像はファイルに埋め込まれたものだけ読める（別ファイルの画像・Draco 圧縮は不可）
+     */
+    loadGLB(path) {
+      const p = (async () => {
+        const [lib, data] = await Promise.all([loadGltfLib(), fetchAsset(s, path)]);
+        const t = performance.now();
+        const gltf = await makeGltfLoader(lib).parseAsync(data, m.base);
+        timing(s, `${path} 解析`, t);
+        // 骨で動く部品は、動いた先で画面外と誤判定されて消えないようにする
+        gltf.scene.traverse(o => { if (o.isSkinnedMesh) o.frustumCulled = false; });
+        if (s.disposed) disposeObject(gltf.scene);
+        return { scene: gltf.scene, animations: gltf.animations || [] };
+      })();
+      s.pending.push(p.catch(err => report(err, s)));
+      return p;
+    },
+    /**
+     * アニメーションを再生する（毎フレーム自動で進み、テンポが上がると速くなる）。返り値は THREE.AnimationAction。
+     * target は loadGLB の返り値か three の物体。clip はアニメーションの名前か THREE.AnimationClip。
+     * 同じ物体で別のアニメーションを再生すると、fade 秒かけて切り替わる
+     */
+    playAnimation(target, clip, { loop = true, fade = 0.2, timeScale = 1 } = {}) {
+      const root = target && target.isObject3D ? target : target && target.scene;
+      if (!root) throw new Error('playAnimation: 物体か loadGLB の返り値を渡してください');
+      if (typeof clip === 'string') {
+        const list = (target && target.animations) || [];
+        const found = THREE.AnimationClip.findByName(list, clip);
+        if (!found) throw new Error(`アニメーション「${clip}」がありません（あるもの: ${list.map(a => a.name).join(', ') || 'なし'}）`);
+        clip = found;
+      }
+      let mixer = s.mixerOf.get(root);
+      if (!mixer) { mixer = new THREE.AnimationMixer(root); s.mixerOf.set(root, mixer); s.mixers.push(mixer); }
+      const action = mixer.clipAction(clip);
+      const prev = s.playing.get(root);
+      action.reset();
+      action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+      action.clampWhenFinished = !loop;
+      action.timeScale = timeScale;
+      action.play();
+      if (prev && prev !== action) { if (fade > 0) action.crossFadeFrom(prev, fade, false); else prev.stop(); }
+      s.playing.set(root, action);
+      return action;
+    },
+
     async playVRMAnimation(vrm, anim, { loop = true } = {}) {
       const lib = await loadVrmLib();
       const mixer = new THREE.AnimationMixer(vrm.scene);
@@ -684,7 +737,7 @@ async function load(m) {
   disposeSession(nextSession);
   const s = {
     runId: m.runId, nodes: new Set(), tweens: [], timers: [], handlers: {}, beatHandlers: [], nextBeat: 0, pending: [],
-    vrms: [], mixers: [], disposed: false,
+    vrms: [], mixers: [], mixerOf: new Map(), playing: new Map(), disposed: false,
     scene: new THREE.Scene(), scene2D: new THREE.Scene(), composer: null, fxLayers: '3d',
     camera3D: makeCamera3D(m.camera === 'perspective' ? 'perspective' : 'ortho'),
     result: null, started: false, time: 0, speed: Number(m.speed) || 1,

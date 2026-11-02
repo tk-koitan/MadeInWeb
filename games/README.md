@@ -205,6 +205,29 @@ async init(ctx) {
 - **ライセンスを必ず確認する**。VRM の中に利用条件が入っている（`vrm-slim` が表示する）。再配布が許可されていないモデルは使えない。出典は `assets/CREDIT.txt` に書く
 - サンドボックスは通信できないので、モデルは本体が代わりに読み込んで渡す（自分のゲームフォルダ内のファイルだけ）
 
+### glTF（.glb の 3D モデル）
+
+```js
+async init(ctx) {
+  this.robot = await ctx.loadGLB('assets/robot.glb');   // { scene, animations }。ゲーム開始前に読み込みが終わる
+  ctx.scene.add(this.robot.scene);
+  ctx.playAnimation(this.robot, 'Idle');                 // 入っているアニメーションを名前で再生（ずっと繰り返す）
+}
+// あとで別のアニメーションに切り替える（0.2 秒かけてなめらかに切り替わる）
+ctx.playAnimation(this.robot, 'Jump', { loop: false });
+```
+
+| API | 内容 |
+| --- | --- |
+| `ctx.loadGLB(path)` | glb を読み込む。返り値は `{ scene, animations }` |
+| `ctx.playAnimation(target, clip, { loop, fade, timeScale })` | アニメーションを再生する。`target` は `loadGLB` の返り値か three の物体、`clip` は名前か `THREE.AnimationClip`。毎フレーム自動で進み、テンポが上がると速くなる。名前を間違えると、入っているアニメーションの一覧がエラーに出る |
+
+- 読めるのは画像が埋め込まれた `.glb` だけ。`.gltf` + 別ファイルの画像、Draco / meshopt / KTX2 で圧縮されたものは読めない
+- モデルの大きさや向きはモデルごとに違う。`new THREE.Box3().setFromObject(model.scene)` で大きさを測って `scale` をそろえ、`rotation.y` で向きを直す
+- 骨で動くモデルは自動で `frustumCulled = false` になる（動いた先で消えないように）
+- 表情などの形の変化（モーフ）は `mesh.morphTargetInfluences[mesh.morphTargetDictionary['名前']] = 1` で変える
+- `"preload"`、ライセンスの確認、`CREDIT.txt` は VRM と同じ。サンプルは `games/robojump`（CC0 のロボット）
+
 ## 禁止事項
 
 - `fetch`、外部 URL、`localStorage`、キーボード入力（サンドボックスで遮断されています）
