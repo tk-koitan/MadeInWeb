@@ -70,6 +70,14 @@ function fetchAsset(s, path) {
   });
 }
 
+// ---------------------------------------------------------------- 読み込みの内訳（本体のデバッグ表示に出す）
+/** t0 からの経過時間を本体に知らせて、いまの時刻を返す */
+function timing(s, label, t0) {
+  const now = performance.now();
+  send({ type: 'loadinfo', runId: s.runId, label, ms: Math.round(now - t0) });
+  return now;
+}
+
 // ---------------------------------------------------------------- VRM（使うゲームが呼んだときだけライブラリを読み込む）
 let vrmLib = null;
 function loadVrmLib() {
@@ -81,13 +89,37 @@ function loadVrmLib() {
   return vrmLib;
 }
 let vrmUtils = null;   // 片付け用（読み込み後にセット）
-/** glTF / VRM を読み込むローダー。埋め込み画像は通信を使わない <img> で読む（CSP で fetch が使えないため） */
+
+// glTF の埋め込み画像は Blob の URL になる。three の標準の ImageBitmapLoader は fetch を使うので CSP で止まる。
+// そこで URL から元の Blob を引けるように記録しておき、createImageBitmap(blob) で直接展開する（通信なし）。
+// createImageBitmap は別スレッドで画像を展開するので、最初の描画で画面が止まらない
+const blobOfUrl = new Map();
+{
+  const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL);
+  URL.createObjectURL = obj => { const url = create(obj); if (obj instanceof Blob) blobOfUrl.set(url, obj); return url; };
+  URL.revokeObjectURL = url => { blobOfUrl.delete(url); revoke(url); };
+}
+// 古い Safari（16 以前）の createImageBitmap は glTF のテクスチャで不具合があるので使わない（three の GLTFLoader と同じ判断）
+const safariVersion = (/^((?!chrome|android).)*safari/i.test(navigator.userAgent) && (navigator.userAgent.match(/Version\/(\d+)/) || [])[1]) || 0;
+const USE_BITMAP = typeof createImageBitmap === 'function' && !(safariVersion && Number(safariVersion) < 17);
+const embeddedImageLoader = {
+  isImageBitmapLoader: true,        // GLTFLoader は onLoad の結果（ImageBitmap か <img>）から Texture を作る
+  setCrossOrigin() { return this; },
+  setRequestHeader() { return this; },
+  load(url, onLoad, onProgress, onError) {
+    const viaImg = () => new THREE.ImageLoader().load(url, onLoad, undefined, onError);
+    const blob = blobOfUrl.get(url);
+    if (USE_BITMAP && blob) createImageBitmap(blob, { premultiplyAlpha: 'none' }).then(onLoad, viaImg);
+    else viaImg();
+  },
+};
+
+/** glTF / VRM を読み込むローダー。埋め込み画像は通信を使わずに読む（CSP で fetch が使えないため） */
 function makeGltfLoader(lib, plugin) {
   const loader = new lib.GLTFLoader();
   loader.register(parser => {
-    parser.textureLoader = new THREE.TextureLoader(parser.options.manager);
-    parser.textureLoader.setCrossOrigin(parser.options.crossOrigin);
-    return { name: 'madeinweb_img_textures' };
+    parser.textureLoader = embeddedImageLoader;
+    return { name: 'madeinweb_embedded_images' };
   });
   loader.register(plugin);
   return loader;
@@ -463,11 +495,14 @@ function makeCtx(s, m) {
         const [lib, data] = await Promise.all([loadVrmLib(), fetchAsset(s, path)]);
         vrmUtils = lib.VRMUtils;
         const loader = makeGltfLoader(lib, parser => new lib.VRMLoaderPlugin(parser));
+        let t = performance.now();
         const gltf = await loader.parseAsync(data, m.base);
+        t = timing(s, `${path} 解析`, t);
         const vrm = gltf.userData.vrm;
         if (!vrm) throw new Error(`VRM ではありません: ${path}`);
         lib.VRMUtils.removeUnnecessaryVertices(gltf.scene);
         lib.VRMUtils.combineSkeletons(gltf.scene);
+        timing(s, `${path} 整理`, t);
         lib.VRMUtils.rotateVRM0(vrm);                       // 古い VRM 0.x も +Z 向きにそろえる
         vrm.scene.traverse(o => { o.frustumCulled = false; });
         if (s.disposed) lib.VRMUtils.deepDispose(vrm.scene); else s.vrms.push(vrm);
@@ -604,9 +639,12 @@ function finish(s, win, byTimeup = false) {
 function disposeSession(s) {
   if (!s || s.disposed) return;
   s.disposed = true;
+  // 展開済みの画像（ImageBitmap）はすぐ解放する（重い VRM だと数百 MB になることがある）
+  const bitmaps = collectTextures(s).map(t => t.image).filter(img => typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap);
   disposeComposer(s);
   if (vrmUtils) for (const vrm of s.vrms) vrmUtils.deepDispose(vrm.scene);
   for (const sc of [s.scene, s.scene2D]) for (const c of [...sc.children]) { sc.remove(c); disposeObject(c); }
+  for (const b of bitmaps) b.close();
 }
 function unload() {
   disposeSession(session);
@@ -622,6 +660,24 @@ function show(runId) {
   nextSession = null;
   pointers.clear();
 }
+
+/** シーンで使っているテクスチャをすべて集める */
+function collectTextures(s) {
+  const set = new Set();
+  for (const sc of [s.scene, s.scene2D]) {
+    if (sc.background && sc.background.isTexture) set.add(sc.background);
+    sc.traverse(o => {
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      for (const m of mats) {
+        for (const v of Object.values(m)) if (v && v.isTexture) set.add(v);
+        if (m.uniforms) for (const u of Object.values(m.uniforms)) if (u && u.value && u.value.isTexture) set.add(u.value);
+      }
+    });
+  }
+  return [...set];
+}
+/** 次のフレームまで待つ（画面が隠れていて止まっているときは 50ms で進む） */
+const nextFrame = () => new Promise(r => { requestAnimationFrame(() => r()); setTimeout(r, 50); });
 
 /** 次のゲームを裏で読み込む。いま画面に出ているゲームは、入れ替わるまでそのまま動き続ける */
 async function load(m) {
@@ -640,19 +696,34 @@ async function load(m) {
   try {
     const url = new URL(m.url);
     url.searchParams.set('run', String(++runCounter)); // 毎回まっさらな状態で読み込む
+    let t = performance.now();
     const mod = await import(url.href);
+    t = timing(s, 'main.js 読み込み', t);
     if (s.disposed) return;
     s.game = mod.default;
     if (!s.game || typeof s.game !== 'object') throw new Error('main.js は export default { init, update } の形にしてください');
     if (s.game.init) await s.game.init(s.ctx);
     // 画像の読み込みを待つ（最大5秒）
     await Promise.race([Promise.all(s.pending), new Promise(r => setTimeout(r, 5000))]);
+    t = timing(s, 'init()', t);
     // シェーダーを先に作っておく（始まった瞬間に固まらないように。VRM などは時間がかかる）
     if (!s.disposed) {
       await Promise.race([
         Promise.all([renderer.compileAsync(s.scene, s.camera3D), renderer.compileAsync(s.scene2D, camera2D)]).catch(() => {}),
         new Promise(r => setTimeout(r, 3000)),
       ]);
+      t = timing(s, 'シェーダー作成', t);
+      // テクスチャを GPU に送っておく。最初の描画でまとめて送ると、その間すべてが止まる（大きい VRM で1秒以上）ので、
+      // 1フレームに少しずつ（8ms ぶんずつ）送って、止まる時間を細かく分ける
+      const textures = collectTextures(s);
+      let slice = performance.now();
+      for (const tex of textures) {
+        if (s.disposed) return;
+        try { renderer.initTexture(tex); } catch { /* 描画時にもう一度送られる */ }
+        if (performance.now() - slice > 8) { await nextFrame(); slice = performance.now(); }
+      }
+      timing(s, `テクスチャ転送 ${textures.length}枚`, t);
+      s.firstFrame = true;     // 最初に描いたときの時間も測る
     }
     if (!s.disposed) send({ type: 'ready', runId: s.runId });
   } catch (err) {
@@ -732,6 +803,8 @@ function frame(now) {
     step(s, dt * k);
   }
   const v = session;
+  const firstFrame = v && v.firstFrame;
+  const tf = performance.now();
   if (!v) {
     renderer.clear();
   } else if (v.composer) {
@@ -742,6 +815,11 @@ function frame(now) {
     renderer.render(v.scene, v.camera3D);
     renderer.clearDepth();
     renderer.render(v.scene2D, camera2D);
+  }
+  if (firstFrame) {
+    // 最初の描画と、比べるための2回目の描画の時間を測る
+    timing(v, v.firstFrame === true ? '最初の描画' : '2回目の描画', tf);
+    v.firstFrame = v.firstFrame === true ? 'second' : false;
   }
   if (now - lastBeat > 500) { lastBeat = now; send({ type: 'heartbeat' }); }
 }

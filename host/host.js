@@ -12,7 +12,7 @@
 //                        （スマホではバージョン表示を5回タップでも切り替えられる）
 import { flash, shake, crack, confetti, clearFx } from './fx.js';
 import { unlockAudio, play, clock, playMusic, loadSound, registerSounds, setGameSounds } from './sfx.js';
-import { beginLoad, addItem, track } from './loadbar.js';
+import { beginLoad, addItem, addTiming, track } from './loadbar.js';
 
 const params = new URLSearchParams(location.search);
 const DEV_GAME = params.get('game');
@@ -72,6 +72,7 @@ window.addEventListener('message', e => {
   // 効果音は画面に出ているゲームのものだけ鳴らす（裏で読み込み中のゲームのものは鳴らさない）
   if (m.type === 'sound') { if (m.runId === activeRunId && typeof m.id === 'string') play(m.id); return; }
   if (m.type === 'fetchAsset') { sendAsset(m); return; }
+  if (m.type === 'loadinfo') { if (DEBUG && m.runId === runId) addTiming(String(m.label).slice(0, 60), Number(m.ms) || 0); return; }
   if (m.type === 'error') { console.error('[minigame]', m.message); showError(String(m.message)); }
   for (const l of [...listeners]) l(m);
 });

@@ -24,6 +24,8 @@ function ensureDom() {
     #loadbar .lb-row.ok .lb-fill { width: 100%; background: #66bb6a; animation: none; }
     #loadbar .lb-row.ng .lb-fill { width: 100%; background: #ef5350; animation: none; }
     #loadbar .lb-row.ng { color: #ff8a80; }
+    #loadbar .lb-row.lb-sub { color: #b0bec5; }
+    #loadbar .lb-row.lb-sub .lb-track { visibility: hidden; }
     #loadbar .lb-head .lb-fill { background: #ffca28; }
     #loadbar .lb-head.done .lb-fill { background: #66bb6a; }
     #loadbar .lb-head.late .lb-fill { background: #ef5350; }
@@ -54,7 +56,7 @@ export function beginLoad(title, deadline) {
 
 /** 読み込み項目を1つ追加する。返り値の progress(done, total) / finish(ok, note) で更新する */
 export function addItem(name) {
-  if (!state) return { progress() {}, finish() {} };
+  if (!state) return { progress() {}, finish() {}, rename() {} };
   const s = state;
   const el = document.createElement('div');
   el.className = 'lb-row busy';
@@ -79,6 +81,17 @@ export function addItem(name) {
   };
 }
 
+/** 内訳（かかった時間だけ）を1行足す。runId が今の読み込みと違えば無視する */
+export function addTiming(name, ms) {
+  if (!state) return;
+  const it = addItem(`  ${name}`);
+  it.finish(true);
+  const row = state.items.at(-1);
+  row.t1 = row.t0 + ms / 1000;
+  row.sub = true;                 // 内訳は全体の時間の計算に入れない
+  row.dirty = true;
+}
+
 /** Promise の完了で項目を終える（サイズの分からない読み込み用） */
 export function track(name, promise) {
   const it = addItem(name);
@@ -91,8 +104,9 @@ function render() {
   const s = state;
   if (!s) return;
   const now = clock();
-  const busy = s.items.some(it => it.status === 'busy');
-  const end = busy ? now : (s.finishedAt ??= Math.max(s.t0, ...s.items.map(it => it.t1 ?? now)));
+  const main = s.items.filter(it => !it.sub);
+  const busy = main.some(it => it.status === 'busy');
+  const end = busy ? now : (s.finishedAt ??= Math.max(s.t0, ...main.map(it => it.t1 ?? now)));
   const elapsed = end - s.t0, budget = Math.max(0.01, s.deadline - s.t0);
   const late = end > s.deadline;
 
@@ -109,7 +123,7 @@ function render() {
     it.dirty = false;
     const fill = it.el.querySelector('.lb-fill'), val = it.el.children[2];
     const sized = it.total > 0 && it.done <= it.total;
-    it.el.className = `lb-row ${it.status === 'busy' && !sized ? 'busy' : it.status === 'busy' ? '' : it.status}`;
+    it.el.className = `lb-row ${it.status === 'busy' && !sized ? 'busy' : it.status === 'busy' ? '' : it.status}${it.sub ? ' lb-sub' : ''}`;
     if (it.status === 'busy') {
       fill.style.width = sized ? `${(it.done / it.total) * 100}%` : '';
       val.textContent = sized ? `${mb(it.done)}/${mb(it.total)}` : it.done ? `${mb(it.done)} 受信` : `${(now - it.t0).toFixed(1)}s`;
