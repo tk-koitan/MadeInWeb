@@ -82,7 +82,7 @@ function timing(s, label, t0) {
 
 // ---------------------------------------------------------------- glTF / VRM（使うゲームが呼んだときだけライブラリを読み込む）
 let gltfLib = null, vrmLib = null;
-// meshopt で圧縮したメッシュ（tools/vrm-slim.mjs --meshopt）も読めるように、展開処理も一緒に読み込む
+// meshopt で圧縮したメッシュ（tools/model-slim.mjs --meshopt）も読めるように、展開処理も一緒に読み込む
 const loadGltfLib = () => (gltfLib ||= Promise.all([import('../vendor/three-addons/loaders/GLTFLoader.js'), import('./meshopt.js')])
   .then(([gltf, meshopt]) => ({ ...gltf, ...meshopt })));
 function loadVrmLib() {

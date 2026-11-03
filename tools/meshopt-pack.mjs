@@ -1,4 +1,4 @@
-// glTF / VRM のメッシュのデータを EXT_meshopt_compression で圧縮する（tools/vrm-slim.mjs --meshopt から使う）
+// glTF / VRM のメッシュのデータを EXT_meshopt_compression で圧縮する（tools/model-slim.mjs --meshopt から使う）
 //
 // - JSON の中身（VRM の骨・表情・揺れものなど）は変えず、bufferView の持ち方だけを変える
 // - bits を付けると、位置・法線・接線・UV・表情（モーフ）の差分の精度を落として、さらに小さくする（EXPONENTIAL フィルタ）。

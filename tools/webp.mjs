@@ -6,7 +6,7 @@
 // - 透明な部分はそのまま残る
 // - --quality は 0〜1（既定 0.85）。1 にすると劣化なし（lossless）
 // - Chrome の場所は環境変数 CHROME で変えられる
-// - ほかのスクリプトからは toWebP([{ data, type }], quality) で使える（tools/vrm-slim.mjs の --webp）
+// - ほかのスクリプトからは toWebP([{ data, type }], quality) で使える（tools/model-slim.mjs の --webp）
 import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { join, basename, dirname, extname, resolve } from 'node:path';

@@ -1,8 +1,10 @@
-// VRM（.vrm / .glb）を軽くする（外部ライブラリなし。meshopt の圧縮処理は tools/lib に同梱）
+// 3D モデル（.glb / .vrm）を軽くする（外部ライブラリなし。meshopt の圧縮処理は tools/lib に同梱）
 //
-//   node tools/vrm-slim.mjs <入力.vrm> <出力.vrm> [--max 1024] [--normal 512] [--thumb 256] [--webp 0.85] [--meshopt 14]
+//   node tools/model-slim.mjs <入力.glb|.vrm> <出力> [--max 1024] [--normal 512] [--thumb 256] [--webp 0.85] [--meshopt 14]
 //
-// おすすめ：node tools/vrm-slim.mjs 入力.vrm 出力.vrm --webp 0.85 --meshopt 14
+// おすすめ：node tools/model-slim.mjs 入力.vrm 出力.vrm --webp 0.85 --meshopt 14（.glb も同じ）
+// - 1 つのファイルにまとまった glb 形式（.glb / .vrm）だけに対応。.gltf + 別ファイルは不可
+// - VRM のときは、ファイルに入っているライセンス情報を表示する
 //
 // - 色のテクスチャは --max、名前に _nml / normal を含むもの（法線マップ）は --normal、
 //   VRM のサムネイルは --thumb の大きさまで縮小する
@@ -22,7 +24,7 @@ import { planMeshopt, encodeMeshopt } from './meshopt-pack.mjs';
 const args = process.argv.slice(2), flags = {}, pos = [];
 for (let i = 0; i < args.length; i++) { if (args[i].startsWith('--')) flags[args[i].slice(2)] = Number(args[++i]); else pos.push(args[i]); }
 const [input, output] = pos;
-if (!input || !output) { console.error('usage: node tools/vrm-slim.mjs <in.vrm> <out.vrm> [--max 1024] [--normal 512] [--thumb 256] [--webp 0.85] [--meshopt 14]'); process.exit(1); }
+if (!input || !output) { console.error('usage: node tools/model-slim.mjs <in.glb|in.vrm> <out> [--max 1024] [--normal 512] [--thumb 256] [--webp 0.85] [--meshopt 14]'); process.exit(1); }
 const MAX = flags.max || 1024, NORMAL = flags.normal || 512, THUMB = flags.thumb || 256;
 
 const src = readFileSync(input);
@@ -32,9 +34,14 @@ const json = JSON.parse(src.toString('utf8', 20, 20 + jsonLen));
 const binStart = 20 + jsonLen + 8;
 const bin = src.subarray(binStart, binStart + src.readUInt32LE(20 + jsonLen));
 
-const meta = json.extensions?.VRMC_vrm?.meta || json.extensions?.VRM?.meta || {};
-console.log(`モデル: ${meta.name || meta.title || '?'} / 作者: ${(meta.authors || [meta.author]).join(', ')}`);
-console.log(`再配布: ${meta.allowRedistribution ?? meta.allowedUserName ?? '?'} / 改変: ${meta.modification ?? meta.licenseName ?? '?'}`);
+const meta = json.extensions?.VRMC_vrm?.meta || json.extensions?.VRM?.meta;
+if (meta) {
+  console.log(`VRM: ${meta.name || meta.title || '?'} / 作者: ${(meta.authors || [meta.author]).join(', ')}`);
+  console.log(`再配布: ${meta.allowRedistribution ?? meta.allowedUserName ?? '?'} / 改変: ${meta.modification ?? meta.licenseName ?? '?'}`);
+} else {
+  // glb にはライセンスの決まった入れ場所がない（asset.copyright があれば表示する）。入手元で確かめること
+  console.log(`glb: ${json.asset?.generator || ''}${json.asset?.copyright ? ' / ' + json.asset.copyright : ''}（ライセンスは入手元で確かめてください）`);
+}
 
 const vrm1Thumb = json.extensions?.VRMC_vrm?.meta?.thumbnailImage;
 const vrm0Thumb = json.extensions?.VRM?.meta?.texture != null ? json.textures?.[json.extensions.VRM.meta.texture]?.source : undefined;

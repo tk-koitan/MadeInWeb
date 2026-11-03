@@ -1,5 +1,5 @@
 // VRM の重さテスト：2体の VRM を並べる。手をあげた方をタッチする（8拍）
-// vrmtest-full（元の大きさ）と vrmtest-slim（tools/vrm-slim.mjs で縮めたもの）は同じコードで、モデルファイルだけが違う。
+// vrmtest-full（元の大きさ）と vrmtest-slim（tools/model-slim.mjs で縮めたもの）は同じコードで、モデルファイルだけが違う。
 // 読み込みにかかる時間は、デバッグ表示（バージョン表示を5回タップ）の読み込みバーで比べる。
 const MODELS = ['assets/a.vrm', 'assets/b.vrm'];
 const X = [-0.45, 0.45];                 // 左・右に立たせる（メートル）
