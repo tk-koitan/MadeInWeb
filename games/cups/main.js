@@ -10,6 +10,8 @@
 const SLOT_X = [-0.115, 0, 0.115];
 const LIFT = 0.075;                       // 持ち上げる高さ
 const BALL_R = 0.0165;                    // 玉の半径
+const R_RIM = 0.0385;                     // コップの口の半径（tools/blender/cups.py の R_TOP）
+const TILT = 0.95;                        // 持ち上げたときに手前へ倒す角度（ラジアン、約 54°）
 const SHUFFLE = {                         // 1 回の入れ替えにかける拍（合計 8 拍）
   1: [2, 2, 2, 2],
   2: [2, 1, 1, 2, 1, 1],
@@ -56,7 +58,7 @@ export default {
       c.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
       c.position.set(x, 0, 0);
       ctx.scene.add(c);
-      return { obj: c, slot: i, lift: 0, tilt: 0 };
+      return { obj: c, slot: i, lift: 0, tilt: 0, baseZ: 0 };
     });
 
     // 当たり（玉が入っているコップ）
@@ -109,8 +111,8 @@ export default {
 
   /** 玉を当たりのコップの下に置く */
   placeBall() {
-    const c = this.cups[this.win].obj;
-    this.ball.position.set(c.position.x, BALL_R, c.position.z);
+    const c = this.cups[this.win];
+    this.ball.position.set(c.obj.position.x, BALL_R, c.baseZ);
   },
 
   update(dt, ctx) {
@@ -135,8 +137,8 @@ export default {
       const xa = SLOT_X[s.a], xb = SLOT_X[s.b];
       const depth = Math.abs(xb - xa) * 0.42;
       // 片方は手前、もう片方は奥を通って入れ替わる
-      s.ca.obj.position.set(xa + (xb - xa) * e, 0, Math.sin(Math.PI * e) * depth);
-      s.cb.obj.position.set(xb + (xa - xb) * e, 0, -Math.sin(Math.PI * e) * depth);
+      s.ca.obj.position.x = xa + (xb - xa) * e; s.ca.baseZ = Math.sin(Math.PI * e) * depth;
+      s.cb.obj.position.x = xb + (xa - xb) * e; s.cb.baseZ = -Math.sin(Math.PI * e) * depth;
       // 動きに合わせて少し傾く（すべっている感じ）
       const lean = Math.sin(Math.PI * t) * 0.06;
       s.ca.tilt = Math.sign(xb - xa) * lean;
@@ -155,11 +157,15 @@ export default {
       }
     }
 
-    // 表示を反映：持ち上げると少し手前に傾けて、中が見えるようにする
+    // 表示を反映：持ち上げながら、奥のふちを支点にして手前を起こし、口（中）をこちらへ向ける。
+    // カメラは約 33° 上から見ているので、それより大きく倒すと中が見える
     for (const c of this.cups) {
-      c.obj.position.y = c.lift * LIFT;
-      c.obj.rotation.x = c.lift * 0.32;
+      const a = c.lift * TILT;
+      c.obj.rotation.x = -a;
       c.obj.rotation.z = -c.tilt;
+      // 奥のふち（z = -R_RIM）が動かないように位置をずらす
+      c.obj.position.y = c.lift * LIFT + R_RIM * Math.sin(a);
+      c.obj.position.z = c.baseZ - R_RIM * (1 - Math.cos(a));
     }
     this.placeBall();
     if (ctx.result === 'win') this.ball.position.y = BALL_R + Math.abs(Math.sin(b * Math.PI)) * 0.03;
