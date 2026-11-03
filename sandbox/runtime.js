@@ -31,6 +31,16 @@ self.__mwBooted = true;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setClearColor(0xffffff);
 renderer.autoClear = false;
+// 影：ライトと物体で castShadow / receiveShadow を true にしたときだけ描かれる（使わないゲームには影響しない）
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+let pmrem = null;   // 環境マップ（ctx.environment）を作る道具。使うゲームが出たときに作る
+const TONE = { aces: THREE.ACESFilmicToneMapping, agx: THREE.AgXToneMapping, neutral: THREE.NeutralToneMapping };
+/** 3D の層を描く直前に、そのゲームのトーンマッピングにする（2D の層はかけない） */
+function useTone(v, on) {
+  renderer.toneMapping = on && v.toneMapping ? v.toneMapping : THREE.NoToneMapping;
+  renderer.toneMappingExposure = on && v.toneMapping ? v.exposure : 1;
+}
 document.body.appendChild(renderer.domElement);
 const canvas = renderer.domElement;
 
@@ -474,6 +484,32 @@ function makeCtx(s, m) {
     },
     /** 3D 用のテクスチャを読み込む（例: new THREE.MeshStandardMaterial({ map: ctx.texture('assets/crate.png') })）。同じ画像は使い回す */
     texture(path) { return cachedTexture(path); },
+    /**
+     * 環境マップ：360° の画像（正距円筒。jpg / webp / png）で、3D の物体に周りの景色の映り込みと柔らかい光を付ける。
+     * MeshStandardMaterial / MeshPhysicalMaterial に効く。読み込みが終わってからゲームが始まる。
+     * opts: intensity（明るさ。既定 1）, background（true で背景にも出す）, blur（背景のぼかし 0〜1）
+     */
+    environment(path, { intensity = 1, background = false, blur = 0 } = {}) {
+      loadTexture(path, tex => {
+        if (s.disposed) return;
+        pmrem ||= new THREE.PMREMGenerator(renderer);
+        tex.mapping = THREE.EquirectangularReflectionMapping;
+        if (s.envRT) s.envRT.dispose();
+        s.envRT = pmrem.fromEquirectangular(tex);
+        s.scene.environment = s.envRT.texture;
+        s.scene.environmentIntensity = intensity;
+        if (background) { s.scene.background = blur > 0 ? s.envRT.texture : tex; s.scene.backgroundBlurriness = blur; }
+      });
+    },
+    /**
+     * トーンマッピング（写真のような色の出方にする）。3D の層だけにかかる。
+     * kind: 'aces' | 'agx' | 'neutral' | null（なし）。exposure: 明るさ（既定 1）
+     */
+    toneMapping(kind = 'aces', exposure = 1) {
+      if (kind && !TONE[kind]) throw new Error(`ctx.toneMapping の種類は aces / agx / neutral のどれかです（${kind}）`);
+      s.toneMapping = kind ? TONE[kind] : null;
+      s.exposure = Number(exposure) || 1;
+    },
     /** three の 3D オブジェクトを 3D の層に置く（奥行き z = 0 の面に置かれる）。r は当たり判定の半径 */
     add3D(object, { r = 100, ...p } = {}) {
       return place(new Node(s, object, { type: 'circle', r }, s.scene), p);
@@ -786,6 +822,7 @@ function disposeSession(s) {
   // 展開済みの画像（ImageBitmap）はすぐ解放する（重い VRM だと数百 MB になることがある）
   const bitmaps = collectTextures(s).map(t => t.image).filter(img => typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap);
   disposeComposer(s);
+  if (s.envRT) { s.envRT.dispose(); s.envRT = null; }
   if (vrmUtils) for (const vrm of s.vrms) vrmUtils.deepDispose(vrm.scene);
   for (const sc of [s.scene, s.scene2D]) for (const c of [...sc.children]) { sc.remove(c); disposeObject(c); }
   for (const b of bitmaps) b.close();
@@ -871,8 +908,12 @@ async function load(m) {
     t = timing(s, 'init()', t);
     // シェーダーを先に作っておく（始まった瞬間に固まらないように。VRM などは時間がかかる）
     if (!s.disposed) {
+      // 3D の層は、そのゲームのトーンマッピングで作る（トーンマッピングごとに別のシェーダーになるため）
+      useTone(s, true);
+      const compile3D = renderer.compileAsync(s.scene, s.camera3D);
+      useTone(s, false);
       await Promise.race([
-        Promise.all([renderer.compileAsync(s.scene, s.camera3D), renderer.compileAsync(s.scene2D, camera2D)]).catch(() => {}),
+        Promise.all([compile3D, renderer.compileAsync(s.scene2D, camera2D)]).catch(() => {}),
         new Promise(r => setTimeout(r, 3000)),
       ]);
       t = timing(s, 'シェーダー作成', t);
@@ -975,11 +1016,15 @@ function frame(now) {
   if (!v) {
     renderer.clear();
   } else if (v.composer) {
+    useTone(v, true);
     v.composer.render(dt);
+    useTone(v, false);
     if (v.fxLayers === '3d') { renderer.clearDepth(); renderer.render(v.scene2D, camera2D); }
   } else {
     renderer.clear();
+    useTone(v, true);
     renderer.render(v.scene, v.camera3D);
+    useTone(v, false);
     renderer.clearDepth();
     renderer.render(v.scene2D, camera2D);
   }

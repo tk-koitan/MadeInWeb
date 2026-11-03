@@ -1,0 +1,14 @@
+cups.glb（机・紙コップ・玉）
+  モデル: koitan / MadeInWeb（tools/blender/cups.py で Blender 5.1 を使って作成。紙コップのテクスチャもスクリプトで描画）
+  机の木目テクスチャ: Wood Table 001（Poly Haven、撮影 Dimitrios Savva・処理 Rico Cilliers）
+    https://polyhaven.com/a/wood_table_001
+    ライセンス: CC0 1.0（クレジット表記は不要。感謝として記載）
+  変換: tools/model-slim.mjs --webp 0.85 --meshopt 14 で軽量化
+
+room.webp（環境マップ・背景）
+  元: Cayley Interior（Poly Haven、Greg Zaal）https://polyhaven.com/a/cayley_interior
+  ライセンス: CC0 1.0（クレジット表記は不要。感謝として記載）
+  変換: 1k の HDR を Blender で 1024×512 の画像にし（Standard、露出 0）、tools/webp.mjs で WebP（品質 0.8）に
+
+bgm.mp3, slide.mp3, tap.mp3
+  ComfyUI（Stable Audio 3）で生成（tools/comfy-audio.mjs。プロンプトは tools/ASSETS.md）

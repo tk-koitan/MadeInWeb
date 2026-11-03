@@ -1,0 +1,20 @@
+{
+  "sdk": "0.1",
+  "author": "koitan",
+  "title": "紙コップ（リアル調）",
+  "instruction": "あたりを さがせ！",
+  "beats": 16,
+  "timeoutResult": "lose",
+  "winSound": "cheer",
+  "loseSound": "aww",
+  "camera": "perspective",
+  "preload": [
+    "assets/cups.glb",
+    "assets/room.webp"
+  ],
+  "bgm": "assets/bgm.mp3",
+  "sounds": {
+    "slide": "assets/slide.mp3",
+    "tap": "assets/tap.mp3"
+  }
+}

@@ -240,12 +240,20 @@ ctx.input.x; ctx.input.y; ctx.input.down;
 | `ctx.add3D(obj, { x, y, r })` | 3D の物体を、画面座標で奥行き z = 0 の面に置く。返り値は Node |
 | `ctx.pick3D(x, y)` | 画面の (x, y) にある、いちばん手前の 3D の物体を返す（`add3D` したものなら Node） |
 | `ctx.toScreen(obj)` | 3D の物体が画面のどこに映るか `{ x, y, visible }` |
+| `ctx.environment(path, { intensity, background, blur })` | 環境マップ。360° の画像（正距円筒の jpg / webp）で、物体に周りの景色の映り込みと柔らかい光を付ける。`background: true` で背景にも出す（`blur` 0〜1 でぼかす）。`MeshStandardMaterial` / glb の物体に効く |
+| `ctx.toneMapping(kind, exposure)` | 写真のような色の出方にする。`kind` は `'aces'` / `'agx'` / `'neutral'`。3D の層だけにかかる |
 
 座標の決まり：three の座標で `(x, -y, z)` が画面の `(x, y)` に対応します（y の符号が逆）。
 カメラはどちらの種類でも、**z = 0 の面がちょうど 540×960 の画面に一致**するように置かれています。
 
 - `"camera": "ortho"`（既定）… 遠近感なし。z を変えても大きさは変わらない（サンプル `games/spin3d`）
 - `"camera": "perspective"` … 遠近感あり。z がプラス（手前）ほど大きく、マイナス（奥）ほど小さく映る。カメラは z ≒ 1030 の位置から画面中央を見ている（サンプル `games/meteor`）
+
+**リアルな見た目にするには**（サンプル `games/cups`）
+- `ctx.environment('assets/room.webp', { background: true, blur: 0.35 })` と `ctx.toneMapping('aces')` を使う。360° の画像は Poly Haven（CC0）の HDRI を 1024×512 に縮めて WebP にしたもの（`tools/ASSETS.md`）
+- 影：ライトに `light.castShadow = true`、影を落とす物体に `castShadow = true`、受ける物体（机など）に `receiveShadow = true`。ライトの `shadow.camera` の範囲を、映る範囲に合わせて狭くするときれいになる
+- モデルは Blender のスクリプトで作れる（`tools/blender/cups.py`。画面なしで `blender --background --python ...`）
+- 影と環境マップはスマホで少し重くなる。影を落とすライトは 1 つ、`shadow.mapSize` は 1024 までを目安にする
 
 ### ポストエフェクト（ブルームなど）
 

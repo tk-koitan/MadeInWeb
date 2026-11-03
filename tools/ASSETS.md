@@ -180,3 +180,21 @@ game.json の winSound / loseSound で選ぶ。すべて seed 1。
 | audio/buzzer.mp3 | 1 | Game show wrong answer buzzer sound effect, harsh low buzz, short |
 | audio/ohno.mp3 | 1 | Cartoon character sad whimper sound effect, descending oh no, short, no music |
 
+
+## 紙コップ（games/cups、リアル調）
+
+Poly Haven（CC0）の素材を API で取得し、Blender のスクリプトでモデルを作った。
+
+```
+# 素材（1k）: https://api.polyhaven.com/files/wood_table_001 の Diffuse / nor_gl / Rough の 1k jpg
+#             https://api.polyhaven.com/files/cayley_interior の hdri 1k .hdr
+blender --background --factory-startup --python tools/blender/cups.py -- <素材フォルダ> cups-src.glb
+node tools/model-slim.mjs cups-src.glb games/cups/assets/cups.glb --webp 0.85 --meshopt 14   # 2.03MB → 0.44MB
+# HDR → 1024×512 の画像（Blender の save_render、Standard、露出 0）→ node tools/webp.mjs env.jpg --quality 0.8
+```
+
+| ファイル | 秒 | プロンプト（seed 1） |
+| --- | --- | --- |
+| games/cups/assets/slide.mp3 | 1 | Close-up foley of an empty paper cup sliding quickly across a smooth wooden table, short soft scraping swish, dry, no music, no voice |
+| games/cups/assets/tap.mp3 | 1 | Close-up foley of a paper cup being lifted from a wooden table and set back down, light hollow tap, dry, no music |
+| games/cups/assets/bgm.mp3 | 9 | Calm casual cafe background music, soft acoustic guitar and light percussion, curious and playful mood, 120 BPM, continuous loop with no fade out |
