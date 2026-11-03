@@ -38,6 +38,8 @@ const meta = json.extensions?.VRMC_vrm?.meta || json.extensions?.VRM?.meta;
 if (meta) {
   console.log(`VRM: ${meta.name || meta.title || '?'} / 作者: ${(meta.authors || [meta.author]).join(', ')}`);
   console.log(`再配布: ${meta.allowRedistribution ?? meta.allowedUserName ?? '?'} / 改変: ${meta.modification ?? meta.licenseName ?? '?'}`);
+} else if (json.extensions?.VRMC_vrm_animation) {
+  console.log('VRMA（VRM アニメーション）');
 } else {
   // glb にはライセンスの決まった入れ場所がない（asset.copyright があれば表示する）。入手元で確かめること
   console.log(`glb: ${json.asset?.generator || ''}${json.asset?.copyright ? ' / ' + json.asset.copyright : ''}（ライセンスは入手元で確かめてください）`);
@@ -109,7 +111,8 @@ if (flags.webp) {
 if (json.buffers.length !== 1) throw new Error('buffer が 1 つの glb だけに対応しています');
 const plan = flags.meshopt ? planMeshopt(json) : new Map();
 const parts = [];
-let offset = 0, fallbackSize = 0, meshBefore = 0, meshAfter = 0;
+let offset = 0, fallbackSize = 0;
+const saved = { mesh: [0, 0], anim: [0, 0] };   // 圧縮前, 圧縮後
 const push = data => {
   const pad = (4 - (offset % 4)) % 4;
   if (pad) { parts.push(Buffer.alloc(pad)); offset += pad; }
@@ -130,7 +133,7 @@ for (const [i, bv] of json.bufferViews.entries()) {
     bv.byteOffset = fallbackSize;
     bv.byteLength = data.length;
     fallbackSize += data.length;
-    meshBefore += data.length; meshAfter += enc.data.length;
+    saved[p.group][0] += data.length; saved[p.group][1] += enc.data.length;
   } else {
     bv.byteOffset = push(data);
     bv.byteLength = data.length;
@@ -143,7 +146,9 @@ json.buffers[0].byteLength = newBin.length;
 if (fallbackSize) {
   json.buffers[1] = { byteLength: fallbackSize, extensions: { EXT_meshopt_compression: { fallback: true } } };
   for (const key of ['extensionsUsed', 'extensionsRequired']) json[key] = [...new Set([...(json[key] || []), 'EXT_meshopt_compression'])];
-  console.log(`  メッシュ: ${(meshBefore / 1024).toFixed(0)}KB → meshopt ${(meshAfter / 1024).toFixed(0)}KB`);
+  for (const [g, label] of [['mesh', 'メッシュ'], ['anim', 'アニメーション']]) {
+    if (saved[g][0]) console.log(`  ${label}: ${(saved[g][0] / 1024).toFixed(0)}KB → meshopt ${(saved[g][1] / 1024).toFixed(0)}KB`);
+  }
 }
 
 let jsonBuf = Buffer.from(JSON.stringify(json), 'utf8');

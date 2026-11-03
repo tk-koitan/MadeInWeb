@@ -16,7 +16,7 @@ GitHub Pages: https://tk-koitan.github.io/MadeInWeb/ （`main` ブランチの�
 | `version.js` | バージョン番号。配信するたびに上げる（PWA キャッシュも更新される） |
 | `sw.js`, `manifest.webmanifest`, `icons/` | PWA |
 | `tools/serve.mjs` | 開発サーバー（`npm run dev`） |
-| `tools/sprite.mjs`, `tools/webp.mjs`, `tools/model-slim.mjs`, `tools/comfy-audio.mjs` | 素材づくり（`tools/ASSETS.md`）。`model-slim --meshopt` は `tools/meshopt-pack.mjs` と `tools/lib/`（meshoptimizer の圧縮処理）を使う |
+| `tools/sprite.mjs`, `tools/webp.mjs`, `tools/model-slim.mjs`, `tools/glb-to-vrma.mjs`, `tools/comfy-audio.mjs` | 素材づくり（`tools/ASSETS.md`）。`model-slim --meshopt` は `tools/meshopt-pack.mjs` と `tools/lib/`（meshoptimizer の圧縮処理）を使う |
 
 ## ミニゲームを作る・直すとき
 

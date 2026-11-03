@@ -1,0 +1,21 @@
+{
+  "sdk": "0.1",
+  "author": "koitan",
+  "title": "なにしてる？（VRM アニメーション）",
+  "instruction": "なにしてる？",
+  "beats": 16,
+  "timeoutResult": "lose",
+  "winSound": "yay",
+  "loseSound": "aww",
+  "camera": "perspective",
+  "preload": [
+    "assets/avatar.vrm",
+    "assets/idle.vrma",
+    "assets/dance.vrma",
+    "assets/hit.vrma",
+    "assets/punch.vrma",
+    "assets/sword.vrma",
+    "assets/spell.vrma",
+    "assets/pistol.vrma"
+  ]
+}

@@ -1,0 +1,17 @@
+avatar.vrm
+  モデル: test（作者 koitan、VRoid Studio 2.3.0 で作成）
+  ライセンス: VRM パブリック・ライセンス 1.0（https://vrm.dev/licenses/1.0/）
+    - アバター利用: 誰でも可 / 商用利用: 法人も可 / 再配布: 可 / 改変して再配布: 可 / クレジット表記: 不要
+    - このモデルは無保証で提供されています（同ライセンス 第4条）
+  改変（このモデルは元のデータを改変したものです）:
+    tools/model-slim.mjs --webp 0.85 --meshopt 14 で、テクスチャを縮小（色 1024px、法線マップ 512px、サムネイル 256px）し、
+    WebP（EXT_texture_webp）に、メッシュを meshopt 圧縮（EXT_meshopt_compression、位置などの精度を 14 ビットに）に変換
+  改変後のデータのライセンス: 元と同じ VRM パブリック・ライセンス 1.0（ファイル内のライセンス設定は変更していません）
+
+idle.vrma, dance.vrma, hit.vrma, punch.vrma, sword.vrma, spell.vrma, pistol.vrma
+  元のアニメーション: Universal Animation Library [Standard]（Quaternius https://quaternius.com/）
+    Idle_Loop, Dance_Loop, Hit_Head, Punch_Cross, Sword_Attack, Spell_Simple_Shoot, Pistol_Shoot
+  入手元: https://quaternius.itch.io/universal-animation-library
+  ライセンス: CC0 1.0（https://creativecommons.org/publicdomain/zero/1.0/。クレジット表記は不要。作者への感謝として記載）
+  変換: tools/glb-to-vrma.mjs で VRM アニメーション（.vrma）に変換（T ポーズは A_TPose の最初のフレーム、30fps）し、
+        tools/model-slim.mjs --meshopt 14 で圧縮

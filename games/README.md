@@ -282,7 +282,7 @@ async init(ctx) {
 | --- | --- |
 | `ctx.loadVRM(path)` | VRM（0.x / 1.0）を読み込む。揺れもの・表情・視線は毎フレーム自動で更新される |
 | `ctx.loadVRMAnimation(path)` | VRM アニメーション（.vrma）を読み込む |
-| `ctx.playVRMAnimation(vrm, anim, { loop })` | アニメーションを再生する（自動で進む） |
+| `ctx.playVRMAnimation(vrm, anim, { loop })` | アニメーションを再生する（自動で進む）。返り値は `THREE.AnimationAction`。別のアニメーションに切り替えるときは、前の返り値の `stop()` を呼ぶ |
 
 - `game.json` に `"camera": "perspective"` を指定すると立体的に見える（サンプル `games/pose`）
 - キャラクターの左腕は画面の右側に見える（カメラと向かい合っているため）
@@ -290,6 +290,7 @@ async init(ctx) {
 - 軽くした VRM は MadeInWeb（three.js）では読めるが、ほかの VRM アプリでは読めないことがある。元のファイルは別に残しておく
 - `game.json` に `"preload": ["assets/avatar.vrm"]` と書くと、前のゲームを遊んでいる間にダウンロードしておく（`loadVRM` / `loadVRMAnimation` で読むファイルは必ず書く。最大8個）
 - VRM などの大きい素材は、一度読み込むとアプリ（Service Worker）に保存され、2回目からはダウンロードしない。ファイルを差し替えると、次の次に遊ぶときから新しいものになる
+- **VRM アニメーション（.vrma）は、人型の glb のアニメーションから作れる**：`node tools/glb-to-vrma.mjs <入力.glb> <出力フォルダ> --tpose <T ポーズのアニメーション名> --clips 名前,名前`。骨の名前が Unreal Engine 形式（`pelvis`, `upperarm_l` …）のもの（例：Quaternius の Universal Animation Library、CC0）に対応。できた .vrma は `node tools/model-slim.mjs <入力.vrma> <出力.vrma> --meshopt 14` で半分〜1/3 ほどに軽くできる（回転の誤差は 0.02° 以下）。サンプルは `games/motion`
 - 重さの比較用に `games/vrmtest-full`（元の大きさ）と `games/vrmtest-slim`（`--webp --meshopt` で軽くしたもの）がある。`game.json` に `"test": true` があるゲームは「えらんで遊ぶ」にだけ出る
 - **ライセンスを必ず確認する**。VRM の中に利用条件が入っている（`model-slim` が表示する）。再配布が許可されていないモデルは使えない。出典は `assets/CREDIT.txt` に書く。改変した（`model-slim` で軽くした）ときは、改変したことと内容も書く。クレジット表記が必要なモデルは、ゲーム画面にも作者・著作権表示・ライセンス名・無保証であることを出す（例 `games/vrmtest-full`）
 - サンドボックスは通信できないので、モデルは本体が代わりに読み込んで渡す（自分のゲームフォルダ内のファイルだけ）
@@ -315,7 +316,7 @@ ctx.playAnimation(this.robot, 'Jump', { loop: false });
 - **glb も `node tools/model-slim.mjs <入力.glb> <出力.glb> --webp 0.85 --meshopt 14` で軽くできる**（VRM と同じツール）。テクスチャを縮小・WebP にし、メッシュを meshopt で圧縮する。見た目とアニメーションは変わらない
   - 例：`games/robojump` のロボット 453KB → 271KB。効果が大きいのは、数 MB 以上のモデルやテクスチャの多いモデル
   - meshopt の圧縮は、このツール（`model-slim`）で作ったものだけ読める。ほかのツール（gltfpack など）で圧縮したものは、使っている圧縮の種類によって読めないことがある
-  - アニメーションのデータは圧縮しない（そのまま残る）
+  - アニメーションのデータも圧縮する（時刻はそのまま、回転・位置は `--meshopt` の精度で）
 - モデルの大きさや向きはモデルごとに違う。`new THREE.Box3().setFromObject(model.scene)` で大きさを測って `scale` をそろえ、`rotation.y` で向きを直す
 - 骨で動くモデルは自動で `frustumCulled = false` になる（動いた先で消えないように）
 - 表情などの形の変化（モーフ）は `mesh.morphTargetInfluences[mesh.morphTargetDictionary['名前']] = 1` で変える

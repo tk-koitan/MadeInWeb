@@ -133,6 +133,10 @@ At the end, print the list of files you created with their pixel sizes.
 
 ## VRM
 
+- games/motion/assets/avatar.vrm … koitan が VRoid Studio で作ったモデル（再配布・改変可）。`tools/model-slim.mjs --webp 0.85 --meshopt 14` で 11.7MB → 0.96MB
+- games/motion/assets/*.vrma … Quaternius の Universal Animation Library [Standard]（CC0、https://quaternius.itch.io/universal-animation-library）から
+  `node tools/glb-to-vrma.mjs UAL1_Standard.glb <出力> --tpose A_TPose --clips Idle_Loop,Dance_Loop,Hit_Head,Punch_Cross,Sword_Attack,Spell_Simple_Shoot,Pistol_Shoot`
+  で変換し、`tools/model-slim.mjs --meshopt 14` で圧縮（7 本で 317KB → 159KB、zip では 162KB → 50KB）
 - games/pose/assets/avatar.vrm … pixiv の VRM1_Constraint_Twist_Sample（three-vrm のサンプル）。再配布・改変可、クレジット不要。`tools/model-slim.mjs` でテクスチャを縮小（10.8MB → 6.05MB）し、さらに `--webp 0.85 --meshopt 14` で WebP 化・meshopt 圧縮（→ 1.34MB）
 
 ### ポーズまねの音
