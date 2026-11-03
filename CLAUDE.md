@@ -16,7 +16,7 @@ GitHub Pages: https://tk-koitan.github.io/MadeInWeb/ （`main` ブランチの�
 | `version.js` | バージョン番号。配信するたびに上げる（PWA キャッシュも更新される） |
 | `sw.js`, `manifest.webmanifest`, `icons/` | PWA |
 | `tools/serve.mjs` | 開発サーバー（`npm run dev`） |
-| `tools/sprite.mjs`, `tools/vrm-slim.mjs`, `tools/comfy-audio.mjs` | 素材づくり（`tools/ASSETS.md`） |
+| `tools/sprite.mjs`, `tools/webp.mjs`, `tools/vrm-slim.mjs`, `tools/comfy-audio.mjs` | 素材づくり（`tools/ASSETS.md`） |
 
 ## ミニゲームを作る・直すとき
 

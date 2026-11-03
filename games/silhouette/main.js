@@ -16,7 +16,7 @@ export default {
     // シルエット（画像に黒を掛けると、形だけが黒く残る）
     ctx.rect({ x: 270, y: 280, w: 420, h: 330, radius: 30, color: '#ffffff' });
     ctx.text('だれかな？', { x: 270, y: 150, size: 30, color: '#a07c3b' });
-    this.sil = ctx.sprite(`assets/${this.answer}.png`, { x: 270, y: 300, fit: 270, color: '#000000' });
+    this.sil = ctx.sprite(`assets/${this.answer}.webp`, { x: 270, y: 300, fit: 270, color: '#000000' });
 
     // 候補のカード（3つなら1列、4つ以上なら2段）
     const rows = n <= 3 ? [n] : [Math.ceil(n / 2), Math.floor(n / 2)];
@@ -28,7 +28,7 @@ export default {
       for (let i = 0; i < count; i++, k++) {
         const x = 270 + (i - (count - 1) / 2) * (size + 20);
         const card = ctx.rect({ x, y, w: size, h: size, radius: 24, color: '#ffffff' });
-        const pic = ctx.sprite(`assets/${names[k]}.png`, { x, y, fit: size * 0.85 });
+        const pic = ctx.sprite(`assets/${names[k]}.webp`, { x, y, fit: size * 0.85 });
         const c = { name: names[k], card, pic, x };
         card.onTap(() => { if (!this.done && !ctx.result) this.select(ctx, c); });
         this.cards.push(c);
@@ -37,12 +37,12 @@ export default {
     ctx.text('タップで選ぶ', { x: 270, y: 905, size: 30, color: '#a07c3b' });
 
     // 正解：正体の動物と選んだカードが笑顔で跳ねる。不正解（時間切れも）：正体の動物がしょんぼりする
-    for (const name of names) { ctx.texture(`assets/${name}_happy.png`); ctx.texture(`assets/${name}_sad.png`); }
+    for (const name of names) { ctx.texture(`assets/${name}_happy.webp`); ctx.texture(`assets/${name}_sad.webp`); }
     ctx.onResult(win => {
       this.sil.color = '#ffffff';                      // 時間切れでも正体を見せる
-      this.sil.image = `assets/${this.answer}_${win ? 'happy' : 'sad'}.png`;
+      this.sil.image = `assets/${this.answer}_${win ? 'happy' : 'sad'}.webp`;
       const chosen = this.chosen;
-      if (chosen) chosen.pic.image = `assets/${chosen.name}_${win ? 'happy' : 'sad'}.png`;
+      if (chosen) chosen.pic.image = `assets/${chosen.name}_${win ? 'happy' : 'sad'}.webp`;
       if (win) {
         ctx.background('#ffe08a');
         ctx.happy([this.sil, ...(chosen ? [chosen.pic] : [])]);

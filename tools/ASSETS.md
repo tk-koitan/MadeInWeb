@@ -5,6 +5,7 @@
 ```
 codex exec --skip-git-repo-check -s workspace-write -C <作業フォルダ> "<下のプロンプト>" < /dev/null
 node tools/sprite.mjs <生成画像.png> games/<id>/assets/<名前>.png --max 256   # 3D テクスチャは --opaque
+node tools/webp.mjs games/<id>/assets/<名前>.png                              # WebP にする（品質は --quality 0〜1、既定 0.85）
 ```
 
 `< /dev/null` を付けないと、裏で実行したときに入力待ちで止まる。

@@ -325,8 +325,9 @@ ctx.playAnimation(this.robot, 'Jump', { loop: false });
 
 ## 画像素材
 
-- `assets/` に PNG を置く。画像の読み込みが終わってからゲームが始まる
-- 生成した画像は `node tools/sprite.mjs <入力.png> games/<id>/assets/<名前>.png --max 256` で整える（透過のゴミ取り・余白の切り取り・縮小）。3D のテクスチャは `--opaque` を付ける
+- `assets/` に画像を置く（WebP・PNG・JPEG）。画像の読み込みが終わってからゲームが始まる
+- **WebP がおすすめ**。透明な部分も使えて、PNG の 2 割ほどの大きさになる（`node tools/webp.mjs <入力.png...>` で変換できる）
+- 生成した画像は `node tools/sprite.mjs <入力.png> games/<id>/assets/<名前>.png --max 256` で整える（透過のゴミ取り・余白の切り取り・縮小）。3D のテクスチャは `--opaque` を付ける。そのあと `node tools/webp.mjs games/<id>/assets/<名前>.png` で WebP にする
 - 音声は mp3 を推奨。生成した場合は `node tools/comfy-audio.mjs` を使う（`tools/ASSETS.md`）
 - 1本あたりの素材は、画像と音声の合計で 1MB 程度までを目安にする
 
