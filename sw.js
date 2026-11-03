@@ -14,6 +14,7 @@ const CORE = [
   './host/gameinfo.js',
   './host/make.js',
   './host/library.js',
+  './host/cold.js',
   './version.js',
   './manifest.webmanifest',
   './icons/icon-180.png',
@@ -47,6 +48,8 @@ async function bigAsset(event, req) {
     if (res.ok && stamp(res)) await cache.put(req, res.clone());
     return res;
   };
+  // キャッシュを消した直後（host/cold.js）は、保存済みを使わずにダウンロードし直す
+  if (req.cache === 'reload') return fetch(req, { cache: 'reload' }).then(async res => { if (res.ok && stamp(res)) await cache.put(req, res.clone()); return res; });
   const hit = await cache.match(req);
   if (!hit) return download();
   event.waitUntil((async () => {
@@ -65,7 +68,7 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
   if (!IS_DEV && BIG_ASSET.test(url.pathname)) { event.respondWith(bigAsset(event, req)); return; }
   event.respondWith(
-    fetch(req, { cache: 'no-cache' })
+    fetch(req, { cache: req.cache === 'reload' ? 'reload' : 'no-cache' })
       .then(res => {
         if (res.ok) {
           const copy = res.clone();

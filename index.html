@@ -187,6 +187,8 @@
 
   #version { position: absolute; top: 1.2cqh; right: 2cqw; font-size: 1.8cqh; color: #999; z-index: 60;
     padding: 0.5cqh 1cqw; user-select: none; -webkit-user-select: none; font-variant-numeric: tabular-nums; }
+  #btn-clear-cache { position: absolute; top: 4.6cqh; right: 2cqw; z-index: 60; font-size: 1.7cqh; padding: 0.6cqh 1.6cqw;
+    border-radius: 1cqh; border: 1px solid #c9b8a0; background: rgba(255, 255, 255, .85); color: #7a5a3a; }
   #error { position: absolute; left: 3%; right: 3%; top: 4%; max-height: 40%; overflow: auto; padding: 8px;
     border-radius: 6px; background: rgba(150, 0, 0, .92); color: #fff; font: 11px/1.4 monospace;
     white-space: pre-wrap; pointer-events: auto; }
@@ -271,6 +273,7 @@
     <div id="lib-list"></div>
   </div>
   <div id="version"></div>
+  <button id="btn-clear-cache" class="hidden">キャッシュを消す</button>
   <div id="error" class="hidden"></div>
 </div>
 <div id="rotate">縦にしてください</div>

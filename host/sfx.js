@@ -3,6 +3,8 @@
 // - 音声ファイル（mp3 など）を読み込んで鳴らす。ミニゲームの game.json の "sounds" / "bgm" もここで扱う
 // - ファイルがない・読み込めない音は、Web Audio の合成音で代わりに鳴らす
 // - 時刻は performance.now() 基準の秒（clock()）で指定でき、拍に正確に合わせて鳴らせる
+import { coldFetch } from './cold.js';
+
 let ac = null, out = null;
 
 /** 進行の基準となる時計（秒） */
@@ -48,7 +50,7 @@ export function loadSound(url) {
   if (!loading.has(url)) {
     loading.set(url, (async () => {
       if (!ensureContext()) return null;
-      const r = await fetch(url);
+      const r = await coldFetch(url);
       if (!r.ok) throw new Error(`${r.status}`);
       const data = await r.arrayBuffer();
       // 古い Safari は decodeAudioData が Promise を返さないので、コールバック形式で呼ぶ

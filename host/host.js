@@ -10,12 +10,14 @@
 //   &speed=0.5..3        スピード（テンポの倍率）を固定
 //   ?debug               通常モードでもエラーと読み込みバーを表示
 //                        （スマホではバージョン表示を5回タップでも切り替えられる）
+//                        デバッグ表示のときは「キャッシュを消す」ボタンが出る（host/cold.js）
 import { flash, shake, crack, confetti, clearFx, tone } from './fx.js';
 import { unlockAudio, play, clock, playMusic, loadSound, registerSounds, setGameSounds } from './sfx.js';
 import { beginLoad, addItem, addTiming, track } from './loadbar.js';
 import { safeAssetPath, parseGameInfo } from './gameinfo.js';
 import { makeScreen, makeLog, openInEditor } from './make.js';
 import { libraryScreen, hydrate } from './library.js';
+import { coldFetch, clearCachesAndReload } from './cold.js';
 
 const params = new URLSearchParams(location.search);
 const DEV_GAME = params.get('game');
@@ -130,7 +132,7 @@ async function readBody(r, bar) {
   return out.buffer;
 }
 async function fetchAssetData(gameId, path, bar) {
-  const r = await fetch(`games/${gameId}/${path}`);
+  const r = await coldFetch(`games/${gameId}/${path}`);
   if (!r.ok) throw new Error(`${path}: ${r.status}`);
   const data = await readBody(r, bar);
   if (data.byteLength > ASSET_MAX_BYTES) throw new Error(`${path} が大きすぎます（${(data.byteLength / 1e6).toFixed(1)}MB）`);
@@ -222,7 +224,7 @@ async function recoverFrame(page) {
 
 // ---------------------------------------------------------------- ミニゲーム一覧
 async function fetchJSON(url) {
-  const r = await fetch(url, { cache: 'no-cache' });
+  const r = await coldFetch(url, { cache: 'no-cache' });
   if (!r.ok) throw new Error(`${url}: ${r.status}`);
   return r.json();
 }
@@ -725,7 +727,27 @@ if ('serviceWorker' in navigator) {
 }
 
 (async () => {
-  const showVersion = () => { $('version').textContent = 'v' + self.APP_VERSION + (DEBUG ? ' DEBUG' : ''); };
+  const showVersion = () => {
+    $('version').textContent = 'v' + self.APP_VERSION + (DEBUG ? ' DEBUG' : '');
+    $('btn-clear-cache').classList.toggle('hidden', !DEBUG);
+  };
+  // デバッグ表示のときだけ出る「キャッシュを消す」。2回タップで実行（間違えて押さないように）
+  {
+    const btn = $('btn-clear-cache');
+    let armed = -Infinity;
+    btn.addEventListener('pointerdown', e => e.stopPropagation());
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      if (performance.now() - armed > 3000) {
+        armed = performance.now();
+        btn.textContent = 'もう一度タップで消す';
+        setTimeout(() => { if (performance.now() - armed >= 3000) btn.textContent = 'キャッシュを消す'; }, 3100);
+        return;
+      }
+      btn.textContent = '消しています…';
+      try { await clearCachesAndReload(); } catch (err) { btn.textContent = '消せませんでした'; console.error(err); }
+    });
+  }
   showVersion();
   // バージョン表示を素早く5回タップすると、デバッグ表示を切り替える（スマホの PWA 用）
   let taps = [];
