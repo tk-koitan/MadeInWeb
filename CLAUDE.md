@@ -12,11 +12,11 @@ GitHub Pages: https://tk-koitan.github.io/MadeInWeb/ （`main` ブランチの�
 | `host/library.js` | マイゲーム（つくる画面で読み込んだゲームを IndexedDB に保存・一覧・ランダムで遊ぶ） |
 | `host/make.js`, `sandbox/make.html` | 「つくる」画面。貼り付けたコードを遊ぶ。make.html は sandbox.html と同じ CSP に `script-src blob:` を足したもの（通信禁止はそのまま） |
 | `games/<id>/` | ミニゲーム。作り方は **`games/README.md`** |
-| `vendor/` | three.js r170（`three.module.min.js`）、three-vrm、planck.js 1.5.1（2D 物理。`sandbox/physics.js` → `ctx.physics`）、cannon-es 0.20.0（3D 物理。`sandbox/physics3d.js` → `ctx.physics3d`） |
+| `vendor/` | three.js r170（`three.module.min.js`）、three-vrm、planck.js 1.5.1（2D 物理。`sandbox/physics.js` → `ctx.physics`）、cannon-es 0.20.0（3D 物理。`sandbox/physics3d.js` → `ctx.physics3d`）、meshoptimizer 0.22.0（glTF / VRM のメッシュ圧縮の展開。WebAssembly を使わない版を `sandbox/meshopt.js` から使う） |
 | `version.js` | バージョン番号。配信するたびに上げる（PWA キャッシュも更新される） |
 | `sw.js`, `manifest.webmanifest`, `icons/` | PWA |
 | `tools/serve.mjs` | 開発サーバー（`npm run dev`） |
-| `tools/sprite.mjs`, `tools/webp.mjs`, `tools/vrm-slim.mjs`, `tools/comfy-audio.mjs` | 素材づくり（`tools/ASSETS.md`） |
+| `tools/sprite.mjs`, `tools/webp.mjs`, `tools/vrm-slim.mjs`, `tools/comfy-audio.mjs` | 素材づくり（`tools/ASSETS.md`）。`vrm-slim --meshopt` は `tools/meshopt-pack.mjs` と `tools/lib/`（meshoptimizer の圧縮処理）を使う |
 
 ## ミニゲームを作る・直すとき
 

@@ -36,7 +36,8 @@ export default {
     this.asked = false;
     ctx.text('手をあげた方をタッチ', { x: 270, y: 815, size: 30, color: '#3a6a9a' });
     // クレジット表記（Seed-san のライセンスで必要）
-    ctx.text('Seed-san © VirtualCast, Inc.', { x: 270, y: 855, size: 18, color: '#5a7a9a', weight: 'normal' });
+    ctx.text('Seed-san © VirtualCast, Inc.', { x: 270, y: 850, size: 18, color: '#5a7a9a', weight: 'normal' });
+    ctx.text('VRM パブリック・ライセンス 1.0（無保証）', { x: 270, y: 874, size: 15, color: '#5a7a9a', weight: 'normal' });
     ctx.onBeat(b => {
       if (b !== 2 || ctx.result) return;
       this.asked = true;

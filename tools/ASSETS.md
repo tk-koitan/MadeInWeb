@@ -133,7 +133,7 @@ At the end, print the list of files you created with their pixel sizes.
 
 ## VRM
 
-- games/pose/assets/avatar.vrm … pixiv の VRM1_Constraint_Twist_Sample（three-vrm のサンプル）。再配布・改変可、クレジット不要。`tools/vrm-slim.mjs` でテクスチャを縮小（10.8MB → 6.05MB）
+- games/pose/assets/avatar.vrm … pixiv の VRM1_Constraint_Twist_Sample（three-vrm のサンプル）。再配布・改変可、クレジット不要。`tools/vrm-slim.mjs` でテクスチャを縮小（10.8MB → 6.05MB）し、さらに `--webp 0.85 --meshopt 14` で WebP 化・meshopt 圧縮（→ 1.34MB）
 
 ### ポーズまねの音
 

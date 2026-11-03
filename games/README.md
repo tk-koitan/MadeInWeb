@@ -286,12 +286,12 @@ async init(ctx) {
 
 - `game.json` に `"camera": "perspective"` を指定すると立体的に見える（サンプル `games/pose`）
 - キャラクターの左腕は画面の右側に見える（カメラと向かい合っているため）
-- VRM は大きい（数 MB〜数十 MB）。`node tools/vrm-slim.mjs <入力.vrm> <出力.vrm>` でテクスチャを縮めてから使う
+- VRM は大きい（数 MB〜数十 MB）。`node tools/vrm-slim.mjs <入力.vrm> <出力.vrm> --webp 0.85 --meshopt 14` で軽くしてから使う（テクスチャの縮小・WebP 化と、メッシュの meshopt 圧縮。10MB 前後のモデルが 1〜2MB になる）
+- 軽くした VRM は MadeInWeb（three.js）では読めるが、ほかの VRM アプリでは読めないことがある。元のファイルは別に残しておく
 - `game.json` に `"preload": ["assets/avatar.vrm"]` と書くと、前のゲームを遊んでいる間にダウンロードしておく（`loadVRM` / `loadVRMAnimation` で読むファイルは必ず書く。最大8個）
 - VRM などの大きい素材は、一度読み込むとアプリ（Service Worker）に保存され、2回目からはダウンロードしない。ファイルを差し替えると、次の次に遊ぶときから新しいものになる
-- `vrm-slim` で小さくなるのはテクスチャだけ。ポリゴンや表情の形のデータが大きいモデル（例: Seed-san）はあまり小さくならない
-- 重さの比較用に `games/vrmtest-full`（元の大きさ）と `games/vrmtest-slim`（縮小）がある。`game.json` に `"test": true` があるゲームは「えらんで遊ぶ」にだけ出る
-- **ライセンスを必ず確認する**。VRM の中に利用条件が入っている（`vrm-slim` が表示する）。再配布が許可されていないモデルは使えない。出典は `assets/CREDIT.txt` に書く
+- 重さの比較用に `games/vrmtest-full`（元の大きさ）と `games/vrmtest-slim`（`--webp --meshopt` で軽くしたもの）がある。`game.json` に `"test": true` があるゲームは「えらんで遊ぶ」にだけ出る
+- **ライセンスを必ず確認する**。VRM の中に利用条件が入っている（`vrm-slim` が表示する）。再配布が許可されていないモデルは使えない。出典は `assets/CREDIT.txt` に書く。改変した（`vrm-slim` で軽くした）ときは、改変したことと内容も書く。クレジット表記が必要なモデルは、ゲーム画面にも作者・著作権表示・ライセンス名・無保証であることを出す（例 `games/vrmtest-full`）
 - サンドボックスは通信できないので、モデルは本体が代わりに読み込んで渡す（自分のゲームフォルダ内のファイルだけ）
 
 ### glTF（.glb の 3D モデル）

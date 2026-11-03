@@ -1,18 +1,28 @@
-// VRM（.vrm / .glb）のテクスチャを縮めて軽くする（外部ライブラリなし）
+// VRM（.vrm / .glb）を軽くする（外部ライブラリなし。meshopt の圧縮処理は tools/lib に同梱）
 //
-//   node tools/vrm-slim.mjs <入力.vrm> <出力.vrm> [--max 1024] [--normal 512] [--thumb 256]
+//   node tools/vrm-slim.mjs <入力.vrm> <出力.vrm> [--max 1024] [--normal 512] [--thumb 256] [--webp 0.85] [--meshopt 14]
+//
+// おすすめ：node tools/vrm-slim.mjs 入力.vrm 出力.vrm --webp 0.85 --meshopt 14
 //
 // - 色のテクスチャは --max、名前に _nml / normal を含むもの（法線マップ）は --normal、
 //   VRM のサムネイルは --thumb の大きさまで縮小する
-// - 形（メッシュ）・ボーン・表情・揺れものは変更しない
+// - --webp を付けると、テクスチャを WebP（glTF の EXT_texture_webp）にする。PNG の 2〜3 割ほどの大きさになる。
+//   数字は品質（0〜1）。法線マップは崩れやすいので、品質を 0.95 以上にする。VRM のサムネイルは PNG のまま
+//   （WebP の VRM は three.js / MadeInWeb では読めるが、ほかの VRM アプリでは読めないことがある）
+// - --meshopt を付けると、メッシュのデータを EXT_meshopt_compression で圧縮する（tools/meshopt-pack.mjs）。
+//   数字は精度（ビット数）。14 がおすすめ（見た目は変わらず、メッシュが 2 割ほどの大きさになる）。
+//   これも three.js / MadeInWeb では読めるが、ほかの VRM アプリでは読めないことがある
+// - 形（メッシュ）・ボーン・表情・揺れものは変更しない（--meshopt でも、目に見えない誤差が出るだけ）
 // - 改変・再配布が許可されているモデルにだけ使うこと（VRM の meta を表示するので確認する）
 import { readFileSync, writeFileSync } from 'node:fs';
 import { decodePNG, encodePNG, resize } from './png.mjs';
+import { toWebP } from './webp.mjs';
+import { planMeshopt, encodeMeshopt } from './meshopt-pack.mjs';
 
 const args = process.argv.slice(2), flags = {}, pos = [];
 for (let i = 0; i < args.length; i++) { if (args[i].startsWith('--')) flags[args[i].slice(2)] = Number(args[++i]); else pos.push(args[i]); }
 const [input, output] = pos;
-if (!input || !output) { console.error('usage: node tools/vrm-slim.mjs <in.vrm> <out.vrm> [--max 1024] [--normal 512] [--thumb 256]'); process.exit(1); }
+if (!input || !output) { console.error('usage: node tools/vrm-slim.mjs <in.vrm> <out.vrm> [--max 1024] [--normal 512] [--thumb 256] [--webp 0.85] [--meshopt 14]'); process.exit(1); }
 const MAX = flags.max || 1024, NORMAL = flags.normal || 512, THUMB = flags.thumb || 256;
 
 const src = readFileSync(input);
@@ -46,22 +56,80 @@ for (const [i, im] of (json.images || []).entries()) {
   console.log(`  ${i} ${im.name}: ${img.w}x${img.h} ${(data.length / 1024).toFixed(0)}KB → ${limit}px ${(out.length / 1024).toFixed(0)}KB`);
 }
 
-// バイナリを組み立て直す（bufferView ごとに 4 バイト境界にそろえて詰め直す）
+// WebP にする（サムネイル以外の PNG / JPEG。小さくならなかったものはそのまま）
+if (flags.webp) {
+  const usedAsTexture = new Set((json.textures || []).map(t => t.source));
+  const targets = (json.images || []).map((im, i) => ({ im, i }))
+    .filter(({ im, i }) => i !== thumbIndex && im.bufferView != null && usedAsTexture.has(i) && /image\/(png|jpeg)/.test(im.mimeType));
+  const datas = targets.map(({ im }) => {
+    const bv = json.bufferViews[im.bufferView];
+    return newImageData.get(im.bufferView) || bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
+  });
+  const webps = await toWebP(targets.map(({ im }, k) => ({
+    data: datas[k], type: im.mimeType,
+    quality: /(_nml|normal)/i.test(im.name || '') ? Math.max(flags.webp, 0.95) : flags.webp,
+  })));
+  const converted = new Set();
+  targets.forEach(({ im, i }, k) => {
+    if (webps[k].length >= datas[k].length) return;
+    // サムネイルと同じ画像を共有している bufferView は書き換えない
+    if (json.images.some((o, j) => j !== i && o.bufferView === im.bufferView)) return;
+    newImageData.set(im.bufferView, webps[k]);
+    im.mimeType = 'image/webp';
+    converted.add(i);
+    console.log(`  ${i} ${im.name}: ${(datas[k].length / 1024).toFixed(0)}KB → WebP ${(webps[k].length / 1024).toFixed(0)}KB`);
+  });
+  if (converted.size) {
+    for (const t of json.textures) {
+      if (!converted.has(t.source)) continue;
+      t.extensions = { ...t.extensions, EXT_texture_webp: { source: t.source } };
+      delete t.source;
+    }
+    for (const key of ['extensionsUsed', 'extensionsRequired']) json[key] = [...new Set([...(json[key] || []), 'EXT_texture_webp'])];
+  }
+}
+
+// バイナリを組み立て直す（bufferView ごとに 4 バイト境界にそろえて詰め直す）。
+// --meshopt のときは、圧縮したデータを buffer 0 に入れ、bufferView 自体は「元の大きさだけを持つ空の buffer 1（fallback）」を指す
+if (json.buffers.length !== 1) throw new Error('buffer が 1 つの glb だけに対応しています');
+const plan = flags.meshopt ? planMeshopt(json) : new Map();
 const parts = [];
-let offset = 0;
-for (const bv of json.bufferViews) {
-  const data = newImageData.get(json.bufferViews.indexOf(bv)) || bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
+let offset = 0, fallbackSize = 0, meshBefore = 0, meshAfter = 0;
+const push = data => {
   const pad = (4 - (offset % 4)) % 4;
   if (pad) { parts.push(Buffer.alloc(pad)); offset += pad; }
-  bv.byteOffset = offset;
-  bv.byteLength = data.length;
+  const at = offset;
   parts.push(data);
   offset += data.length;
+  return at;
+};
+for (const [i, bv] of json.bufferViews.entries()) {
+  const data = newImageData.get(i) || bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
+  const p = plan.get(i);
+  const enc = p && await encodeMeshopt(data, p, flags.meshopt);
+  if (enc && enc.data.length < data.length) {
+    const at = push(enc.data);
+    fallbackSize += (4 - (fallbackSize % 4)) % 4;
+    bv.extensions = { ...bv.extensions, EXT_meshopt_compression: { buffer: 0, byteOffset: at, byteLength: enc.data.length, byteStride: p.stride, count: p.count, mode: p.mode, ...(enc.filter ? { filter: enc.filter } : {}) } };
+    bv.buffer = 1;
+    bv.byteOffset = fallbackSize;
+    bv.byteLength = data.length;
+    fallbackSize += data.length;
+    meshBefore += data.length; meshAfter += enc.data.length;
+  } else {
+    bv.byteOffset = push(data);
+    bv.byteLength = data.length;
+  }
 }
 const tail = (4 - (offset % 4)) % 4;
 if (tail) parts.push(Buffer.alloc(tail));
 const newBin = Buffer.concat(parts);
 json.buffers[0].byteLength = newBin.length;
+if (fallbackSize) {
+  json.buffers[1] = { byteLength: fallbackSize, extensions: { EXT_meshopt_compression: { fallback: true } } };
+  for (const key of ['extensionsUsed', 'extensionsRequired']) json[key] = [...new Set([...(json[key] || []), 'EXT_meshopt_compression'])];
+  console.log(`  メッシュ: ${(meshBefore / 1024).toFixed(0)}KB → meshopt ${(meshAfter / 1024).toFixed(0)}KB`);
+}
 
 let jsonBuf = Buffer.from(JSON.stringify(json), 'utf8');
 const jpad = (4 - (jsonBuf.length % 4)) % 4;

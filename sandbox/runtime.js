@@ -82,7 +82,9 @@ function timing(s, label, t0) {
 
 // ---------------------------------------------------------------- glTF / VRM（使うゲームが呼んだときだけライブラリを読み込む）
 let gltfLib = null, vrmLib = null;
-const loadGltfLib = () => (gltfLib ||= import('../vendor/three-addons/loaders/GLTFLoader.js'));
+// meshopt で圧縮したメッシュ（tools/vrm-slim.mjs --meshopt）も読めるように、展開処理も一緒に読み込む
+const loadGltfLib = () => (gltfLib ||= Promise.all([import('../vendor/three-addons/loaders/GLTFLoader.js'), import('./meshopt.js')])
+  .then(([gltf, meshopt]) => ({ ...gltf, ...meshopt })));
 function loadVrmLib() {
   vrmLib ||= Promise.all([
     loadGltfLib(),
@@ -120,6 +122,7 @@ const embeddedImageLoader = {
 /** glTF / VRM を読み込むローダー。埋め込み画像は通信を使わずに読む（CSP で fetch が使えないため） */
 function makeGltfLoader(lib, plugin) {
   const loader = new lib.GLTFLoader();
+  loader.setMeshoptDecoder(lib.MeshoptDecoder);
   loader.register(parser => {
     parser.textureLoader = embeddedImageLoader;
     return { name: 'madeinweb_embedded_images' };
