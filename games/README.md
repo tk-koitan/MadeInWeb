@@ -332,7 +332,7 @@ ctx.playAnimation(this.robot, 'Jump', { loop: false });
 
 ## 禁止事項
 
-- `fetch`、外部 URL、`localStorage`、キーボード入力（サンドボックスで遮断されています）
+- `fetch`、外部 URL、WebRTC（`RTCPeerConnection`）、`localStorage`、キーボード入力（サンドボックスで遮断されています）
 - `Math.random()`（`ctx.random` を使う）
 - 独自の外部ライブラリの読み込み
 
