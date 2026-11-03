@@ -80,6 +80,7 @@ window.addEventListener('message', e => {
   // 効果音は画面に出ているゲームのものだけ鳴らす（裏で読み込み中のゲームのものは鳴らさない）
   if (m.type === 'sound') { if (m.runId === activeRunId && typeof m.id === 'string') play(m.id); return; }
   if (m.type === 'fetchAsset') { sendAsset(m); return; }
+  if (m.type === 'navigating') { stopFrame(); return; }
   if (m.type === 'loadinfo') { if (DEBUG && m.runId === runId) addTiming(String(m.label).slice(0, 60), Number(m.ms) || 0); return; }
   if (m.type === 'error') {
     // 貼り付けたコードは blob: の URL で動いているので、エラーの場所を main.js:行:列 に書き直す
@@ -103,6 +104,23 @@ function waitFor(pred, timeout) {
   });
 }
 const post = m => frame && frame.contentWindow && frame.contentWindow.postMessage(m, '*');
+
+// ---- サンドボックスが別のページへ移動しようとしたら、すぐ枠ごと消す
+// iframe は自分自身の移動を止められない（CSP にも禁止する設定がない）。移動先の URL にデータを入れて送ることと、
+// 移動先のページ（偽のログイン画面など）をゲームの枠に出すことができてしまうので、見つけたら表示される前に消す。
+// 合図は2つ：sandbox/boot.js が離れる瞬間（beforeunload / pagehide）に送る 'navigating' と、iframe の2回目の load。
+// 消したあとは、遊んでいる・読み込んでいるゲームを失敗扱いにする（runSession が新しい枠を作り直す）
+function stopFrame() {
+  if (!frame) return;
+  frame.remove();
+  frame = null;
+  lastHeartbeat = -Infinity;          // 遊んでいる途中なら、落ちたものとして扱う
+  const text = 'ミニゲームが別のページへ移動しようとしたので止めました（ゲームのコードでページを移動することはできません）';
+  console.error('[minigame]', text);
+  showError(text);
+  if (makeMode) makeLog(text);
+  for (const id of new Set([runId, activeRunId])) for (const l of [...listeners]) l({ type: 'error', runId: id, message: text });
+}
 
 // ---- サンドボックスからの素材ファイルの依頼（VRM など）
 // サンドボックスは通信できないので、本体が「いま遊んでいるゲームのフォルダ内のファイル」だけを取得して渡す
@@ -202,7 +220,9 @@ async function sendAsset(m) {
 async function createFrame(page = framePage) {
   framePage = page;
   if (frame) frame.remove();
-  frame = document.createElement('iframe');
+  const f = frame = document.createElement('iframe');
+  let loads = 0;
+  f.addEventListener('load', () => { if (++loads > 1 && f === frame) stopFrame(); });   // 2回目の load = 別のページへ移動した
   frame.className = 'game';
   frame.setAttribute('sandbox', 'allow-scripts');
   frame.setAttribute('title', 'minigame');
@@ -473,6 +493,7 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
   const devHint = game => (DEV_GAME ? `DEV: ${game.id}  難易度 ${st.difficulty}  ${Math.round(BASE_BPM * st.speed)}bpm`
     : practice ? `${game.title}　${DIFF_LABELS[st.difficulty - 1]}　${Math.round(BASE_BPM * st.speed)} BPM` : '');
   bag = []; lastId = null;
+  if (!frame) await recoverFrame();     // 前回、ゲームが移動しようとして枠を消したまま
   // 「◀ メニュー」で練習を終える
   let quit = false;
   const quitBtn = $('btn-quit');
@@ -685,7 +706,7 @@ async function playCustom(games, opts) {
   unlockAudio();
   makeMode = true;
   try {
-    if (framePage !== 'make.html') await createFrame('make.html');
+    if (framePage !== 'make.html' || !frame) await createFrame('make.html');
     await runSession(games, opts);
   } catch (err) {
     makeLog(String(err && err.message ? err.message : err));
@@ -718,7 +739,7 @@ async function myGames(first) {
       else await playCustom([r.play], { practice: true, speed: r.speed, difficulty: r.difficulty });
     }
   }
-  if (framePage !== 'sandbox.html') await recoverFrame('sandbox.html');
+  if (framePage !== 'sandbox.html' || !frame) await recoverFrame('sandbox.html');
 }
 
 // ---------------------------------------------------------------- 起動

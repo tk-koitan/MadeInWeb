@@ -11,6 +11,15 @@
   window.addEventListener('securitypolicyviolation', e => fatal(`CSP でブロック: ${e.blockedURI} (${e.violatedDirective})`));
 })();
 
+// 別のページへ移動しようとしたら、離れる瞬間に本体へ知らせる（本体は枠ごと消す。host.js の stopFrame）。
+// ゲームのコードより先に登録するので、ゲーム側から止めたり外したりはできない。送る関数も先に取っておく
+(() => {
+  const P = parent, postToHost = P.postMessage.bind(P);
+  const tell = () => { try { postToHost({ type: 'navigating' }, '*'); } catch {} };
+  window.addEventListener('beforeunload', tell, true);
+  window.addEventListener('pagehide', tell, true);
+})();
+
 // WebRTC を消す。CSP の connect-src 'none' は WebRTC の通信（STUN / TURN サーバーへの問い合わせ）を止めないので、
 // 残しておくとゲームのコードが外部へデータを送れてしまう（CSP の webrtc 'block' は Chrome では効かない）。
 // ゲームのコードより先に消しておけば取り戻す方法はない：入れ子の iframe は別オリジン扱いで中を触れず、
