@@ -7,7 +7,7 @@
 // - VRM のときは、ファイルに入っているライセンス情報を表示する
 //
 // - 色のテクスチャは --max、名前に _nml / normal を含むもの（法線マップ）は --normal、
-//   VRM のサムネイルは --thumb の大きさまで縮小する
+//   VRM のサムネイルは --thumb の大きさまで縮小する（法線マップは、マテリアルの normalTexture に使われているものも含む）
 // - --webp を付けると、テクスチャを WebP（glTF の EXT_texture_webp）にする。PNG の 2〜3 割ほどの大きさになる。
 //   数字は品質（0〜1）。法線マップは崩れやすいので、品質を 0.95 以上にする。VRM のサムネイルは PNG のまま
 //   （WebP の VRM は three.js / MadeInWeb では読めるが、ほかの VRM アプリでは読めないことがある）
@@ -43,6 +43,14 @@ if (meta) {
   console.log(`glb: ${json.asset?.generator || ''}${json.asset?.copyright ? ' / ' + json.asset.copyright : ''}（ライセンスは入手元で確かめてください）`);
 }
 
+// 法線マップの画像：マテリアルの normalTexture に使われているもの（VRoid のように画像に名前がないモデルもあるため）と、名前に _nml / normal を含むもの
+const normalImages = new Set();
+for (const m of json.materials || []) {
+  const t = m.normalTexture && json.textures?.[m.normalTexture.index];
+  if (t) normalImages.add(t.source ?? t.extensions?.EXT_texture_webp?.source);
+}
+const isNormal = i => normalImages.has(i) || /(_nml|normal)/i.test(json.images[i].name || '');
+
 const vrm1Thumb = json.extensions?.VRMC_vrm?.meta?.thumbnailImage;
 const vrm0Thumb = json.extensions?.VRM?.meta?.texture != null ? json.textures?.[json.extensions.VRM.meta.texture]?.source : undefined;
 const thumbIndex = vrm1Thumb ?? vrm0Thumb;
@@ -53,7 +61,7 @@ for (const [i, im] of (json.images || []).entries()) {
   if (im.mimeType !== 'image/png' || im.bufferView == null) continue;
   const bv = json.bufferViews[im.bufferView];
   const data = bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
-  const limit = i === thumbIndex ? THUMB : /(_nml|normal)/i.test(im.name || '') ? NORMAL : MAX;
+  const limit = i === thumbIndex ? THUMB : isNormal(i) ? NORMAL : MAX;
   let img;
   try { img = decodePNG(data); } catch (err) { console.log(`  ${i} ${im.name}: そのまま（${err.message}）`); continue; }
   if (Math.max(img.w, img.h) <= limit) continue;
@@ -74,7 +82,7 @@ if (flags.webp) {
   });
   const webps = await toWebP(targets.map(({ im }, k) => ({
     data: datas[k], type: im.mimeType,
-    quality: /(_nml|normal)/i.test(im.name || '') ? Math.max(flags.webp, 0.95) : flags.webp,
+    quality: isNormal(targets[k].i) ? Math.max(flags.webp, 0.95) : flags.webp,
   })));
   const converted = new Set();
   targets.forEach(({ im, i }, k) => {
