@@ -161,6 +161,8 @@ for (const d of DIFFS) {
   await S('Page.navigate', { url: `http://127.0.0.1:${port}/?game=${id}&difficulty=${d}&speed=${SPEED}` });
   let ready = false;
   for (let i = 0; i < 100 && !ready; i++) { await sleep(100); ready = await evaluate(`!!(self.__mwTest && document.getElementById('curtain'))`); }
+  // スクリーンショットにゲームの画面だけが写るように、読み込みバーなどのデバッグ表示を隠す（数字は下で文字で出す）
+  await evaluate(`(() => { const st = document.createElement('style'); st.textContent = '#loadbar, #version, #btn-clear-cache { display: none !important; }'; document.head.appendChild(st); })()`);
   await sleep(500);
   await tap(270, 480);                                // 「タップしてスタート」
   const seen = { load: [], end: [], error: [] };

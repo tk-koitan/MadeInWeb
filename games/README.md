@@ -369,11 +369,11 @@ Node.js 22 以上と、Chrome・Edge・Chromium のどれかが必要です。
 ```
 git clone --depth 1 --filter=blob:none --sparse https://github.com/tk-koitan/MadeInWeb.git
 cd MadeInWeb
-git sparse-checkout set --no-cone "/*" "!/games/*/" "/games/balloon/" "/games/spin3d/"
+git sparse-checkout set host sandbox vendor tools audio icons games/balloon games/spin3d
 ```
 
 ゲームは `games/<id>/`（`<id>` は英数字と `-` `_`）に作ります。`games/index.json` に書かなくても、下の2つで試せます。
-`balloon`（2D）と `spin3d`（3D）はサンプルです。ほかのサンプルが見たいときは `git sparse-checkout add /games/<id>/` で取れます。
+`balloon`（2D）と `spin3d`（3D）はサンプルです。ほかのサンプルが見たいときは `git sparse-checkout add games/<id>` で取れます（`games/index.json` に一覧があります）。全部で 5MB ほどです。
 
 ### 画面なしでテストプレイする（npm run check）
 
