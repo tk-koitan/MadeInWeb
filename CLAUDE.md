@@ -32,4 +32,5 @@ GitHub Pages: https://tk-koitan.github.io/MadeInWeb/ （`main` ブランチの�
 - 本番の更新を配信するときは `version.js` の番号を上げる
 - `sandbox/sandbox.html` の CSP を変えたら `sandbox/make.html` も合わせる
 - サンドボックスの CSP（通信禁止）は緩めない。ゲームが大きなファイルを読むときは、本体の `fetchAsset`（自分のゲームフォルダ内だけ）を経由する
+- 最上位にフォルダを増やしたら、`games/README.md`「開発キットを取ってくる」の `git sparse-checkout set` の一覧にも足す（AI が取ってくるキットに入らなくなる）
 - git の作者・push は `tk-koitan` アカウント（このリポジトリのローカル設定済み）。グローバル設定は変えない
