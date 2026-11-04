@@ -1,5 +1,5 @@
 // 本体：タイトル → ミニゲームを連続で遊ぶ → ゲームオーバー
-// ミニゲームは常駐サンドボックス iframe の中で動き、ここからは postMessage でだけ操作する。
+// ミニゲームは1本ごとに新しいサンドボックス iframe の中で動き、ここからは postMessage でだけ操作する。
 //
 // 進行はすべて拍（ビート）で管理する。最初は 120bpm、スピードアップでテンポが上がる。
 //   スタート(4拍) → 準備(4拍) → ミニゲーム(8 or 16拍) → 結果(4拍) → 準備(4拍) → …
@@ -68,19 +68,28 @@ function waitUntil(t) {
 }
 
 // ---------------------------------------------------------------- サンドボックス iframe
-let frame = null, framePage = 'sandbox.html', lastHeartbeat = 0, runId = 0, activeRunId = 0;   // runId は最後に読み込んだゲーム、activeRunId は遊んでいるゲーム
+// ミニゲームは1本ごとに新しい iframe で動かし、終わったら iframe ごと捨てる。
+// 同じ iframe を使い回すと、悪意のあるゲームが仕込んだ処理が次のゲームの間も動き続けて、
+// 次のゲーム（「つくる」画面やマイゲームの、公開していないゲームも）を盗み見たり書き換えたりできてしまうため。
+// 次のゲームの iframe は、前のゲームの結果を出している間に裏（前のゲームの iframe の下）で作って読み込み、
+// 幕が閉じたら入れ替える（showFrame）。
+let framePage = 'sandbox.html', lastHeartbeat = 0, runId = 0, activeRunId = 0;   // runId は最後に読み込んだゲーム、activeRunId は遊んでいるゲーム
+const frames = new Map();      // iframe → その中で動かすゲームの runId（起動確認用は -1）
 const listeners = new Set();
 let makeMode = false;    // 「つくる」画面から遊んでいる（エラーを必ず出して、画面に戻ったときに一覧を見せる）
 
 window.addEventListener('message', e => {
-  if (!frame || e.source !== frame.contentWindow) return;
-  const m = e.data;
-  if (!m || typeof m !== 'object' || typeof m.type !== 'string') return;
-  lastHeartbeat = performance.now();
+  let f = null;
+  for (const fr of frames.keys()) if (e.source === fr.contentWindow) { f = fr; break; }
+  if (!f) return;
+  if (!e.data || typeof e.data !== 'object' || typeof e.data.type !== 'string') return;
+  // runId は送り主の iframe のものにする（ほかのゲームになりすませないように）
+  const id = frames.get(f), m = { ...e.data, runId: id };
+  if (id === activeRunId) lastHeartbeat = performance.now();
   // 効果音は画面に出ているゲームのものだけ鳴らす（裏で読み込み中のゲームのものは鳴らさない）
-  if (m.type === 'sound') { if (m.runId === activeRunId && typeof m.id === 'string') play(m.id); return; }
-  if (m.type === 'fetchAsset') { sendAsset(m); return; }
-  if (m.type === 'navigating') { stopFrame(); return; }
+  if (m.type === 'sound') { if (id === activeRunId && typeof m.id === 'string') play(m.id); return; }
+  if (m.type === 'fetchAsset') { sendAsset(m, f); return; }
+  if (m.type === 'navigating') { stopFrame(f); return; }
   if (m.type === 'loadinfo') { if (DEBUG && m.runId === runId) addTiming(String(m.label).slice(0, 60), Number(m.ms) || 0); return; }
   if (m.type === 'error') {
     // 貼り付けたコードは blob: の URL で動いているので、エラーの場所を main.js:行:列 に書き直す
@@ -103,23 +112,57 @@ function waitFor(pred, timeout) {
     listeners.add(l);
   });
 }
-const post = m => frame && frame.contentWindow && frame.contentWindow.postMessage(m, '*');
+const frameOf = id => { for (const [f, fid] of frames) if (fid === id) return f; return null; };
+/** m.runId のゲームの iframe に送る */
+const post = m => { const f = frameOf(m.runId); if (f && f.contentWindow) f.contentWindow.postMessage(m, '*'); };
+
+/** サンドボックス iframe を作り、起動するまで待つ。先に入っている iframe（遊んでいるゲーム）の下に置く */
+async function newFrame(id, page = framePage) {
+  const f = document.createElement('iframe');
+  frames.set(f, id);
+  let loads = 0;
+  f.addEventListener('load', () => { if (++loads > 1) stopFrame(f); });   // 2回目の load = 別のページへ移動した
+  f.className = 'game';
+  f.setAttribute('sandbox', 'allow-scripts');
+  f.setAttribute('title', 'minigame');
+  f.src = `sandbox/${page}?v=${encodeURIComponent(self.APP_VERSION)}`;
+  const booted = waitFor(m => m.runId === id && (m.type === 'boot' || m.type === 'fatal'), 15000);
+  $('shaker').prepend(f);
+  let m;
+  try {
+    m = await booted;
+  } catch {
+    removeFrame(f);
+    throw new Error('ミニゲームの実行環境が起動しませんでした（15秒でタイムアウト）。\nブラウザの拡張機能やセキュリティ設定が iframe をブロックしていないか確認してください。');
+  }
+  if (m.type === 'fatal') { removeFrame(f); throw new Error(`ミニゲームの実行環境を起動できません。\n${m.message}`); }
+  return f;
+}
+function removeFrame(f) { if (frames.delete(f)) f.remove(); }
+/** keep 以外の iframe をすべて捨てる（中で動いている処理も止まる） */
+function dropFrames(keep = null) { for (const f of [...frames.keys()]) if (f !== keep) removeFrame(f); }
+/** 裏で読み込んだゲームを画面に出す（ほかの iframe は捨てる） */
+function showFrame(id) {
+  const f = frameOf(id);
+  dropFrames(f);
+  post({ type: 'show', runId: id });
+}
 
 // ---- サンドボックスが別のページへ移動しようとしたら、すぐ枠ごと消す
 // iframe は自分自身の移動を止められない（CSP にも禁止する設定がない）。移動先の URL にデータを入れて送ることと、
 // 移動先のページ（偽のログイン画面など）をゲームの枠に出すことができてしまうので、見つけたら表示される前に消す。
 // 合図は2つ：sandbox/boot.js が離れる瞬間（beforeunload / pagehide）に送る 'navigating' と、iframe の2回目の load。
-// 消したあとは、遊んでいる・読み込んでいるゲームを失敗扱いにする（runSession が新しい枠を作り直す）
-function stopFrame() {
-  if (!frame) return;
-  frame.remove();
-  frame = null;
-  lastHeartbeat = -Infinity;          // 遊んでいる途中なら、落ちたものとして扱う
+// 消したあとは、そのゲームを失敗扱いにする（次のゲームは新しい iframe で動く）
+function stopFrame(f) {
+  if (!frames.has(f)) return;
+  const id = frames.get(f);
+  removeFrame(f);
+  if (id === activeRunId) lastHeartbeat = -Infinity;          // 遊んでいる途中なら、落ちたものとして扱う
   const text = 'ミニゲームが別のページへ移動しようとしたので止めました（ゲームのコードでページを移動することはできません）';
   console.error('[minigame]', text);
   showError(text);
   if (makeMode) makeLog(text);
-  for (const id of new Set([runId, activeRunId])) for (const l of [...listeners]) l({ type: 'error', runId: id, message: text });
+  for (const l of [...listeners]) l({ type: 'error', runId: id, message: text });
 }
 
 // ---- サンドボックスからの素材ファイルの依頼（VRM など）
@@ -181,9 +224,9 @@ function prefetchGame(game) {
   for (const url of [game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean)) loadSound(url).catch(() => {});
 }
 
-async function sendAsset(m) {
+async function sendAsset(m, f) {
   let bar = null;
-  const reply = (extra, transfer = []) => frame && frame.contentWindow && frame.contentWindow.postMessage({ type: 'asset', reqId: m.reqId, ...extra }, '*', transfer);
+  const reply = (extra, transfer = []) => frames.has(f) && f.contentWindow && f.contentWindow.postMessage({ type: 'asset', reqId: m.reqId, ...extra }, '*', transfer);
   try {
     if (m.runId !== runId || !currentGameId) throw new Error('いまのゲームからの依頼ではありません');
     if (!safeAssetPath(m.path)) throw new Error(`読み込めないファイル名です: ${m.path}`);
@@ -214,32 +257,6 @@ async function sendAsset(m) {
     if (bar) bar.finish(false, message);
     reply({ ok: false, error: message });
   }
-}
-
-/** サンドボックスを作り直す。page は 'sandbox.html'（ふつう）か 'make.html'（「つくる」画面。貼り付けたコードを動かせる） */
-async function createFrame(page = framePage) {
-  framePage = page;
-  if (frame) frame.remove();
-  const f = frame = document.createElement('iframe');
-  let loads = 0;
-  f.addEventListener('load', () => { if (++loads > 1 && f === frame) stopFrame(); });   // 2回目の load = 別のページへ移動した
-  frame.className = 'game';
-  frame.setAttribute('sandbox', 'allow-scripts');
-  frame.setAttribute('title', 'minigame');
-  frame.src = `sandbox/${page}?v=${encodeURIComponent(self.APP_VERSION)}`;
-  const booted = waitFor(m => m.type === 'boot' || m.type === 'fatal', 15000);
-  $('shaker').prepend(frame);
-  let m;
-  try {
-    m = await booted;
-  } catch {
-    throw new Error('ミニゲームの実行環境が起動しませんでした（15秒でタイムアウト）。\nブラウザの拡張機能やセキュリティ設定が iframe をブロックしていないか確認してください。');
-  }
-  if (m.type === 'fatal') throw new Error(`ミニゲームの実行環境を起動できません。\n${m.message}`);
-  lastHeartbeat = performance.now();
-}
-async function recoverFrame(page) {
-  try { await createFrame(page); } catch (err) { console.error(err); }
 }
 
 // ---------------------------------------------------------------- ミニゲーム一覧
@@ -385,9 +402,21 @@ function loadGame(game, st, deadline) {
   lastHeartbeat = performance.now();
   // マイゲームは、保存場所からコードと素材を読んでから渡す
   const prep = game.saved ? hydrate(game) : Promise.resolve();
-  const ready = prep.then(() => {
+  const ready = prep.then(async () => {
     if (id !== runId) return false;               // 読んでいる間に、別のゲームの読み込みが始まった
     currentCustom = game.custom ? game.custom.files : null;
+    // このゲーム専用のサンドボックスを作る
+    const t0 = performance.now();
+    try {
+      await newFrame(id);
+    } catch (err) {
+      const text = String(err && err.message ? err.message : err);
+      showError(text);
+      if (makeMode) makeLog(text);
+      return false;
+    }
+    if (DEBUG && id === runId) addTiming('サンドボックス作成', performance.now() - t0);
+    if (id !== runId) return false;
     post({
       type: 'load', runId: id,
       // 「つくる」画面・マイゲームは、コードと画像をそのまま渡す（サンドボックスの中で blob: にして読む）
@@ -493,7 +522,6 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
   const devHint = game => (DEV_GAME ? `DEV: ${game.id}  難易度 ${st.difficulty}  ${Math.round(BASE_BPM * st.speed)}bpm`
     : practice ? `${game.title}　${DIFF_LABELS[st.difficulty - 1]}　${Math.round(BASE_BPM * st.speed)} BPM` : '');
   bag = []; lastId = null;
-  if (!frame) await recoverFrame();     // 前回、ゲームが移動しようとして枠を消したまま
   // 「◀ メニュー」で練習を終える
   let quit = false;
   const quitBtn = $('btn-quit');
@@ -564,7 +592,7 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
     hideMark();
     showTimer(false);
     clearFx();
-    post({ type: 'show', runId: cur.id });         // 幕で隠れたので、裏で読み込んだゲームに入れ替える
+    showFrame(cur.id);                             // 幕で隠れたので、裏で読み込んだゲームに入れ替える（前のゲームの iframe は捨てる）
 
     // ミニゲームの1拍目でスワイプを始める（ゲームはスワイプしながら始まる）
     await waitUntil(prepEnd);
@@ -604,7 +632,7 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
       sounds: i => (resultMusic || i === 0 ? [] : ['kick']),
       onBeat: i => { if (i > 0) markBeat(spb); },
     });
-    if (r.crashed) { await recoverFrame(); T = Math.max(T, clock() + 0.05); }
+    if (r.crashed) dropFrames();                 // 固まった・止めた iframe を捨てる（次のゲームは新しい iframe で動く）
     fromGame = true;
 
     if (st.lives <= 0) break;
@@ -612,14 +640,14 @@ async function runSession(catalog, { practice = false, speed = null, difficulty 
 
   quitBtn.classList.add('hidden');
   if (quit) {                                   // 練習をやめた：ゲームオーバー画面は出さない
-    post({ type: 'unload' });
+    dropFrames();
     hideMark();
     clearFx();
     return;
   }
   play('whoosh');
   await swipeToCurtain({ title: 'GAME OVER', main: String(st.count), sub: 'クリアした数', hint: 'タップでタイトルへ' }, swipeDur(spb));
-  post({ type: 'unload' });
+  dropFrames();
   hideMark();
   if (!playMusic(HOST_MUSIC.gameover, undefined, 6)) play('gameover');
   await sleep(1000);
@@ -706,12 +734,13 @@ async function playCustom(games, opts) {
   unlockAudio();
   makeMode = true;
   try {
-    if (framePage !== 'make.html' || !frame) await createFrame('make.html');
+    framePage = 'make.html';
     await runSession(games, opts);
   } catch (err) {
     makeLog(String(err && err.message ? err.message : err));
   } finally {
     makeMode = false;
+    framePage = 'sandbox.html';
   }
 }
 /** つくる画面とマイゲーム画面を行き来する。どちらかで「もどる」とタイトルへ（編集から来たつくる画面はマイゲームへ） */
@@ -739,7 +768,6 @@ async function myGames(first) {
       else await playCustom([r.play], { practice: true, speed: r.speed, difficulty: r.difficulty });
     }
   }
-  if (framePage !== 'sandbox.html' || !frame) await recoverFrame('sandbox.html');
 }
 
 // ---------------------------------------------------------------- 起動
@@ -790,7 +818,7 @@ if ('serviceWorker' in navigator) {
     catalog = await loadCatalog();
     if (DEV_GAME) catalog = catalog.filter(g => g.id === DEV_GAME);
     if (!catalog.length) throw new Error(DEV_GAME ? `ミニゲーム「${DEV_GAME}」が見つかりません` : 'ミニゲームがありません');
-    await createFrame();
+    removeFrame(await newFrame(-1));     // サンドボックスが起動できる環境か確かめる
   } catch (err) {
     curtain({ title: 'エラー', sub: String(err && err.message ? err.message : err), hint: '再読み込みしてください' });
     return;

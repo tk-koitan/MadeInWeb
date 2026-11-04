@@ -8,7 +8,7 @@ GitHub Pages: https://tk-koitan.github.io/MadeInWeb/ （`main` ブランチの�
 | パス | 役割 |
 | --- | --- |
 | `index.html`, `host/` | 本体。タイトル・進行・タイマー・効果音。ミニゲームとは postMessage だけで通信 |
-| `sandbox/` | 常駐サンドボックス iframe（`sandbox="allow-scripts"`、CSP で通信禁止）と SDK ランタイム |
+| `sandbox/` | サンドボックス iframe（`sandbox="allow-scripts"`、CSP で通信禁止。ミニゲーム1本ごとに作り直す）と SDK ランタイム。`boot.js` が WebRTC を消し、ページの移動を本体に知らせる |
 | `host/library.js` | マイゲーム（つくる画面で読み込んだゲームを IndexedDB に保存・一覧・ランダムで遊ぶ） |
 | `host/make.js`, `sandbox/make.html` | 「つくる」画面。貼り付けたコードを遊ぶ。make.html は sandbox.html と同じ CSP に `script-src blob:` を足したもの（通信禁止はそのまま） |
 | `games/<id>/` | ミニゲーム。作り方は **`games/README.md`** |
