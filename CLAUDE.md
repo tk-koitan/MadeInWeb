@@ -16,13 +16,14 @@ GitHub Pages: https://tk-koitan.github.io/MadeInWeb/ （`main` ブランチの�
 | `version.js` | バージョン番号。配信するたびに上げる（PWA キャッシュも更新される） |
 | `sw.js`, `manifest.webmanifest`, `icons/` | PWA |
 | `tools/serve.mjs` | 開発サーバー（`npm run dev`） |
+| `tools/check.mjs` | 画面なしのテストプレイ（`npm run check -- <id>`）。Chrome 系のブラウザを CDP で動かし、本体の `self.__mwTest`（`?game=` のときだけ記録）からエラー・読み込みの余裕・勝ち負けを読む |
 | `tools/sprite.mjs`, `tools/webp.mjs`, `tools/model-slim.mjs`, `tools/glb-to-vrma.mjs`, `tools/comfy-audio.mjs`, `tools/blender/` | 素材づくり（`tools/ASSETS.md`）。`model-slim --meshopt` は `tools/meshopt-pack.mjs` と `tools/lib/`（meshoptimizer の圧縮処理）を使う |
 
 ## ミニゲームを作る・直すとき
 
 1. `games/README.md` の API だけを使う。禁止事項を守る
 2. `games/index.json` に id を追加する
-3. `npm run dev` → `http://localhost:5173/?game=<id>` で確認する
+3. `npm run check -- <id>` でテストプレイ（エラー・読み込みの余裕・スクリーンショット）。手で遊ぶなら `npm run dev` → `http://localhost:5173/?game=<id>`
 
 ## 注意
 

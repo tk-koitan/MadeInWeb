@@ -5,7 +5,7 @@
 //   スタート(4拍) → 準備(4拍) → ミニゲーム(8 or 16拍) → 結果(4拍) → 準備(4拍) → …
 //
 // URL パラメータ（開発用）
-//   ?game=balloon        そのミニゲームだけを繰り返す（ライフ無限、エラー表示あり）
+//   ?game=balloon        そのミニゲームだけを繰り返す（ライフ無限、エラー表示あり）。games/index.json に書いていなくてよい
 //   &difficulty=1..3     難易度を固定
 //   &speed=0.5..3        スピード（テンポの倍率）を固定
 //   ?debug               通常モードでもエラーと読み込みバーを表示
@@ -26,6 +26,9 @@ const DEV_SPEED = params.has('speed') ? clamp(Number(params.get('speed')) || 1, 
 const DEBUG_KEY = 'madeinweb.debug';
 const storedDebug = () => { try { return localStorage.getItem(DEBUG_KEY) === '1'; } catch { return false; } };
 let DEBUG = !!DEV_GAME || params.has('debug') || storedDebug();
+// テストプレイ用の記録（?game= のときだけ）。tools/check.mjs が読み込みの余裕・勝ち負け・エラーを読む
+const testLog = DEV_GAME ? (self.__mwTest = []) : null;
+const testEvent = e => { if (testLog && testLog.length < 500) testLog.push({ t: Math.round(performance.now()), ...e }); };
 
 const BASE_BPM = 120;
 const MAX_LIVES = 4;
@@ -267,7 +270,8 @@ async function fetchJSON(url) {
 }
 
 async function loadCatalog() {
-  const ids = await fetchJSON('games/index.json');
+  // ?game= のときは、そのゲームだけ読む（games/index.json に書いていない作りかけのゲームも試せる）
+  const ids = DEV_GAME ? (/^[\w-]{1,64}$/.test(DEV_GAME) ? [DEV_GAME] : []) : await fetchJSON('games/index.json');
   const list = [];
   for (const id of ids) {
     try {
@@ -367,6 +371,7 @@ function showCountdown(n, spb) {
 
 let errorTimer = 0;
 function showError(msg) {
+  testEvent({ type: 'error', message: String(msg).slice(0, 2000) });
   if (!DEBUG && !makeMode) return;
   const el = $('error');
   el.textContent = msg;
@@ -442,7 +447,10 @@ function loadGame(game, st, deadline) {
     const audioUrls = [game.bgmUrl, ...Object.values(game.soundUrls)].filter(Boolean);
     return Promise.all(audioUrls.map(u => (DEBUG ? track(u.split('/').pop(), loadSound(u)) : loadSound(u))));
   }).catch(() => {});
-  return Promise.all([ready, audio]).then(([ok]) => ok);
+  return Promise.all([ready, audio]).then(([ok]) => {
+    testEvent({ type: 'load', ok, margin: Math.round((deadline - clock()) * 1000) / 1000 });   // 余裕（秒）。マイナスなら間に合っていない
+    return ok;
+  });
 }
 
 /**
@@ -489,6 +497,7 @@ async function gamePhase(T, game, spb, id) {
 
   await waitUntil(T);
   post({ type: 'start', runId: id });
+  testEvent({ type: 'start', beats, spb });
   showInstruction(game.instruction, spb);
   setTimer(1);
   showTimer(true);
@@ -504,9 +513,11 @@ async function gamePhase(T, game, spb, id) {
     })();
   });
 
+  const decided = !!outcome;
   if (!outcome) { outcome = game.timeoutResult; react(outcome === 'win', game); }  // 時間切れ
   post({ type: 'timeup', runId: id });
   listeners.delete(resultL);
+  testEvent({ type: 'end', win: outcome === 'win', timeout: !decided, crashed });
   return { win: outcome === 'win', crashed, end };
 }
 
